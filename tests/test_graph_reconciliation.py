@@ -1,7 +1,7 @@
 """Phase 4 graph reconciliation tests."""
-from datetime import date, timedelta
+
+from datetime import date
 from decimal import Decimal
-from uuid import uuid4
 
 from packages.contracts import (
     BankTransaction,
@@ -192,8 +192,17 @@ def test_candidate_edge_scoring():
 
     # Edges involving exact_payment should score higher than different_payment
     # (or at least not lower)
-    exact_edge_scores = [e.score for e in invoice_edges if e.source_node_id == exact_payment.id or e.target_node_id == exact_payment.id]
-    diff_edge_scores = [e.score for e in invoice_edges if e.source_node_id == different_payment.id or e.target_node_id == different_payment.id]
+    exact_edge_scores = [
+        edge.score
+        for edge in invoice_edges
+        if edge.source_node_id == exact_payment.id or edge.target_node_id == exact_payment.id
+    ]
+    diff_edge_scores = [
+        edge.score
+        for edge in invoice_edges
+        if edge.source_node_id == different_payment.id
+        or edge.target_node_id == different_payment.id
+    ]
 
     if exact_edge_scores and diff_edge_scores:
         assert max(exact_edge_scores) >= max(diff_edge_scores)
@@ -273,9 +282,7 @@ def test_find_graph_paths_multi_hop():
         }
     )
     edges = build_candidate_edges(nodes, date_window_days=5)
-    paths = find_graph_paths(
-        nodes, edges, max_hop_distance=5, min_path_score=Decimal("0.30")
-    )
+    paths = find_graph_paths(nodes, edges, max_hop_distance=5, min_path_score=Decimal("0.30"))
 
     assert len(paths) > 0
     # At least one path should be found
