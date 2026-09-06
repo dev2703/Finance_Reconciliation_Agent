@@ -134,7 +134,9 @@ def _required_amount(record: Mapping[str, Any], case_id: str, record_id: str) ->
     if isinstance(amount, Decimal):
         return amount
     if isinstance(amount, bool) or not isinstance(amount, (str, int)):
-        raise DatasetFormatError(f"{case_id}: record {record_id!r} amount must be Decimal-compatible")
+        raise DatasetFormatError(
+            f"{case_id}: record {record_id!r} amount must be Decimal-compatible"
+        )
     return Decimal(str(amount))
 
 

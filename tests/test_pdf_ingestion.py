@@ -151,9 +151,7 @@ class TestTableExtraction:
     def test_no_border_table_uses_text_structure_strategy(self):
         pages = extract_pdf(create_test_pdf_with_no_border_table(), source_name="no-border.pdf")
         text_tables = [
-            table
-            for table in pages[0]["tables"]
-            if table["extraction_method"] == "pdfplumber_text"
+            table for table in pages[0]["tables"] if table["extraction_method"] == "pdfplumber_text"
         ]
         assert text_tables
         assert {cell["column_index"] for cell in text_tables[0]["cells"]} >= {0, 1, 2}
@@ -183,6 +181,7 @@ def test_ocr_confidence_controls_fallback(monkeypatch):
     assert page["ocr_confidence"] == Decimal("0.90")
     assert page["fallback_required"] is False
     assert page["words"][0]["x0"] == 10
+
 
 def test_table_rows_convert_to_canonical_records_with_provenance():
     pages = [

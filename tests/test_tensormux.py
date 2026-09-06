@@ -50,9 +50,15 @@ def test_structured_call_validates_output_and_records_telemetry():
         return httpx.Response(
             200,
             json={
-                "choices": [{"message": {"content": (
-                    '{"root_cause":"fee","confidence":"0.82","unresolved_questions":[]}'
-                )}}],
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                '{"root_cause":"fee","confidence":"0.82","unresolved_questions":[]}'
+                            )
+                        }
+                    }
+                ],
                 "usage": {"prompt_tokens": 100, "completion_tokens": 20},
             },
         )
@@ -95,11 +101,17 @@ def test_retryable_failure_retries_and_reports_count():
         return httpx.Response(
             200,
             json={
-                "choices": [{"message": {"content": {
-                    "root_cause": None,
-                    "confidence": "0",
-                    "unresolved_questions": ["missing evidence"],
-                }}}],
+                "choices": [
+                    {
+                        "message": {
+                            "content": {
+                                "root_cause": None,
+                                "confidence": "0",
+                                "unresolved_questions": ["missing evidence"],
+                            }
+                        }
+                    }
+                ],
                 "usage": {},
             },
         )

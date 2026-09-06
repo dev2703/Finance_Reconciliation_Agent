@@ -17,8 +17,12 @@ from services.agents.tools import (
 
 def test_read_only_tools_search_and_return_only_expected_record_type():
     invoice = Invoice(
-        invoice_number="INV-1", amount=Decimal("10.00"), currency="USD", record_date=date.today(),
-        description="Acme subscription", metadata={"payment_id": "pay-1"},
+        invoice_number="INV-1",
+        amount=Decimal("10.00"),
+        currency="USD",
+        record_date=date.today(),
+        description="Acme subscription",
+        metadata={"payment_id": "pay-1"},
     )
     tools = ReadOnlyRecordTools([invoice])
     assert tools.search_records("acme") == [invoice]

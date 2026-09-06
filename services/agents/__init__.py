@@ -1,5 +1,6 @@
 """Bounded runtime agent contracts and model gateway."""
 
+from services.agents.controller import InvestigationFinding, investigate_unresolved_case
 from services.agents.prompts import AgentTask, EvidencePrompt, build_messages
 from services.agents.runtime import (
     AgentKind,
@@ -17,6 +18,7 @@ from services.agents.tensormux import (
 )
 
 __all__ = [
+    "InvestigationFinding",
     "AgentTask",
     "AgentKind",
     "AgentRunRequest",
@@ -30,4 +32,5 @@ __all__ = [
     "TensorMuxError",
     "TensorMuxSettings",
     "build_messages",
+    "investigate_unresolved_case",
 ]

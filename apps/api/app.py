@@ -18,9 +18,16 @@ def create_app(
 ) -> FastAPI:
     """Create the API with an optional, locally trusted Phase 5 artifact."""
     app = FastAPI(title=API_TITLE, version=API_VERSION)
+    allowed_origins = [
+        origin.strip()
+        for origin in os.getenv(
+            "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
+        ).split(",")
+        if origin.strip()
+    ]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+        allow_origins=allowed_origins,
         allow_methods=["GET", "POST"],
         allow_headers=["*"],
     )

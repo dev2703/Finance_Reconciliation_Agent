@@ -7,18 +7,38 @@ on:
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: finance_app
+          POSTGRES_PASSWORD: finance_app_ci
+          POSTGRES_DB: finance_reconciliation
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U finance_app -d finance_reconciliation"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://finance_app:finance_app_ci@127.0.0.1:5432/finance_reconciliation
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
       - run: uv sync
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: sh infra/migrate.sh
+      - run: test "$(psql "$DATABASE_URL" -Atc "SELECT COUNT(*) FROM financial_records WHERE external_id = 'INV-1001'")" = "1"
       - run: uv run pytest
-      - run: uv run ruff check packages apps tests
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: npm ci
         working-directory: apps/web
       - run: npm run typecheck
+        working-directory: apps/web
+      - run: npm run build
         working-directory: apps/web

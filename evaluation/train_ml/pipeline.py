@@ -128,9 +128,7 @@ def evaluate_generalization(
     review_count = sum(review_selected)
     hard_count = sum(hard)
     hard_fp = sum(
-        1
-        for chosen, is_hard in zip(review_selected, hard, strict=True)
-        if chosen and is_hard
+        1 for chosen, is_hard in zip(review_selected, hard, strict=True) if chosen and is_hard
     )
 
     auto_rate = (auto_fp / auto_count) if auto_count else None
@@ -154,7 +152,11 @@ def evaluate_generalization(
 
     passes = True
     if auto_threshold is not None:
-        passes = passes and auto_fp == 0 and auto_exposure <= auto_match_constraint.max_false_positive_exposure
+        passes = (
+            passes
+            and auto_fp == 0
+            and auto_exposure <= auto_match_constraint.max_false_positive_exposure
+        )
         if auto_rate is not None:
             passes = passes and auto_rate <= auto_match_constraint.max_false_positive_rate
     if review_threshold is not None and review_count:
@@ -192,11 +194,11 @@ def train_ml_pipeline(
     artifact_directory = Path(artifact_directory)
     auto_match_constraint = auto_match_constraint or ThresholdConstraint(
         max_false_positive_rate=0.0,
-        max_false_positive_exposure=Decimal("0"),
+        max_false_positive_exposure=Decimal(0),
     )
     review_constraint = review_constraint or ThresholdConstraint(
         max_false_positive_rate=0.25,
-        max_false_positive_exposure=Decimal("500"),
+        max_false_positive_exposure=Decimal(500),
     )
 
     examples = load_training_examples(dataset_path)

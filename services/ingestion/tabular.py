@@ -145,8 +145,11 @@ def normalize_row(
         parsed.update(
             invoice_number=str(_value(normalized, "invoice_number", "invoice", "id") or ""),
             vendor_id=_value(normalized, "vendor_id", "vendor", "supplier_id"),
-            due_date=(parse_date(_value(normalized, "due_date"), field_name="due_date")
-                      if _value(normalized, "due_date") else None),
+            due_date=(
+                parse_date(_value(normalized, "due_date"), field_name="due_date")
+                if _value(normalized, "due_date")
+                else None
+            ),
             tax_amount=(
                 parse_decimal(_value(normalized, "tax_amount", "tax"), field_name="tax_amount")
                 if _value(normalized, "tax_amount", "tax")
@@ -166,27 +169,42 @@ def normalize_row(
                 if _value(normalized, "fee_amount", "fee")
                 else Decimal(0)
             ),
-            settled_date=(parse_date(_value(normalized, "settled_date"), field_name="settled_date")
-                          if _value(normalized, "settled_date") else None),
+            settled_date=(
+                parse_date(_value(normalized, "settled_date"), field_name="settled_date")
+                if _value(normalized, "settled_date")
+                else None
+            ),
         )
     elif model is BankTransaction:
         parsed.update(
             account_id=str(_value(normalized, "account_id", "account") or "unknown"),
             transaction_type=str(_value(normalized, "transaction_type", "type") or "unknown"),
             bank_reference=_value(normalized, "bank_reference", "bank_id"),
-            value_date=(parse_date(_value(normalized, "value_date"), field_name="value_date")
-                        if _value(normalized, "value_date") else None),
+            value_date=(
+                parse_date(_value(normalized, "value_date"), field_name="value_date")
+                if _value(normalized, "value_date")
+                else None
+            ),
         )
     elif model is LedgerEntry:
         parsed.update(
             journal_id=str(_value(normalized, "journal_id", "journal") or "unknown"),
             account_code=str(_value(normalized, "account_code", "account") or "unknown"),
-            debit=(parse_decimal(_value(normalized, "debit"), field_name="debit")
-                   if _value(normalized, "debit") else Decimal(0)),
-            credit=(parse_decimal(_value(normalized, "credit"), field_name="credit")
-                    if _value(normalized, "credit") else Decimal(0)),
-            posting_date=(parse_date(_value(normalized, "posting_date"), field_name="posting_date")
-                          if _value(normalized, "posting_date") else None),
+            debit=(
+                parse_decimal(_value(normalized, "debit"), field_name="debit")
+                if _value(normalized, "debit")
+                else Decimal(0)
+            ),
+            credit=(
+                parse_decimal(_value(normalized, "credit"), field_name="credit")
+                if _value(normalized, "credit")
+                else Decimal(0)
+            ),
+            posting_date=(
+                parse_date(_value(normalized, "posting_date"), field_name="posting_date")
+                if _value(normalized, "posting_date")
+                else None
+            ),
         )
     return model.model_validate(parsed)
 
@@ -236,9 +254,7 @@ def parse_csv_result(
                 )
             )
         except (TabularParseError, ValueError) as exc:
-            result.errors.append(
-                RowParseError(index, None, None, None, str(exc))
-            )
+            result.errors.append(RowParseError(index, None, None, None, str(exc)))
     return result
 
 

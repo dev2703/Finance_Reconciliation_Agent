@@ -11,3 +11,4 @@ evaluation/train_ml/data/
 *.tsbuildinfo
 !.env.example
 .vscode
+.neon

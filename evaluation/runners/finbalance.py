@@ -99,8 +99,10 @@ def score_finbalance(
     correct_amounts: list[Decimal] = []
 
     for case, prediction in zip(cases, ordered, strict=True):
-        amount = prediction.amount if prediction.amount > 0 else (
-            max((abs(value) for value in case.amounts), default=Decimal(0))
+        amount = (
+            prediction.amount
+            if prediction.amount > 0
+            else (max((abs(value) for value in case.amounts), default=Decimal(0)))
         )
         journal_score = _journal_accuracy(case.expected_journal_entries, prediction.journal_entries)
         field_score = _field_accuracy(case.expected_fields, prediction.parsed_fields)

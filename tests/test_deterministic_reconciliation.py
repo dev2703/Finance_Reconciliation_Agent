@@ -101,8 +101,7 @@ def test_one_to_many_allocation_conserves_decimal_amount():
     assert result is not None
     assert result.status == ReconciliationStatus.MATCHED
     assert (
-        sum((allocation.amount for allocation in result.allocations), Decimal(0))
-        == source.amount
+        sum((allocation.amount for allocation in result.allocations), Decimal(0)) == source.amount
     )
     assert set(result.target_record_ids) == {target.id for target in targets}
 
@@ -113,8 +112,7 @@ def test_many_to_one_allocation_conserves_decimal_amount():
     result = allocate_many_to_one(sources, target)
     assert result is not None
     assert (
-        sum((allocation.amount for allocation in result.allocations), Decimal(0))
-        == target.amount
+        sum((allocation.amount for allocation in result.allocations), Decimal(0)) == target.amount
     )
     assert set(result.source_record_ids) == {source.id for source in sources}
 

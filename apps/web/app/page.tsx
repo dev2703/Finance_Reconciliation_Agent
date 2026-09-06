@@ -167,35 +167,27 @@ export default function Home() {
   const records = (preview?.records as Array<Record<string, unknown>> | undefined) ?? [];
 
   return (
-    <main style={{ maxWidth: 960, margin: "0 auto", padding: "48px 24px" }}>
-      <nav aria-label="Primary navigation" style={{ display: "flex", justifyContent: "flex-end", marginBottom: 24 }}>
-        <Link href="/dashboard">Dashboard</Link>
-      </nav>
-      <h1>Finance Reconciliation</h1>
-      <p>Upload a source file, review normalized records, and confirm the import.</p>
-      <form onSubmit={upload} style={{ display: "grid", gap: 16, maxWidth: 520 }}>
-        <label>
-          Record type
-          <select value={recordType} onChange={(event) => setRecordType(event.target.value)}>
-            <option value="invoice">Invoice</option>
-            <option value="payment">Payment</option>
-            <option value="settlement">Settlement</option>
-            <option value="bank">Bank transaction</option>
-            <option value="ledger">Ledger entry</option>
-          </select>
-        </label>
-        <label onDragOver={(event) => event.preventDefault()} onDrop={dropFile}>
-          Source file (drop here or browse)
-          <input type="file" accept=".csv,.xlsx" onChange={selectFile} />
-          {file && <span>{file.name} ({Math.ceil(file.size / 1024)} KB)</span>}
-        </label>
-        <button type="submit" disabled={isUploading}>
-          {isUploading ? `Uploading ${uploadProgress}%` : "Upload and preview"}
-        </button>
-      </form>
-      {error && <p role="alert">{error}</p>}
+    <main className="shell">
+      <header className="topbar">
+        <div><p className="eyebrow">Data intake</p><h1>Bring your source data together</h1></div>
+        <nav aria-label="Primary navigation"><Link href="/dashboard">Dashboard</Link><Link href="/reconciliation">Reconciliation</Link><Link href="/exceptions">Exceptions</Link><Link href="/reviews">Reviews</Link></nav>
+      </header>
+      <section className="upload-layout">
+        <article className="panel">
+          <p className="eyebrow">New import</p>
+          <h2>Upload and verify a source file</h2>
+          <p>Files are normalized with provenance before they become available to reconciliation.</p>
+          <form className="upload-form" onSubmit={upload}>
+            <label>Record type<select value={recordType} onChange={(event) => setRecordType(event.target.value)}><option value="invoice">Invoice</option><option value="payment">Payment</option><option value="settlement">Settlement</option><option value="bank">Bank transaction</option><option value="ledger">Ledger entry</option></select></label>
+            <label className="dropzone" onDragOver={(event) => event.preventDefault()} onDrop={dropFile}>Drop CSV or XLSX here, or browse<input type="file" accept=".csv,.xlsx" onChange={selectFile} />{file && <span className="file-name">{file.name} · {Math.ceil(file.size / 1024)} KB</span>}</label>
+            <button className="primary-action" type="submit" disabled={isUploading}>{isUploading ? `Uploading ${uploadProgress}%` : "Upload and preview"}</button>
+          </form>
+        </article>
+        <aside className="upload-tips"><p className="eyebrow">Import checklist</p><h2>Built for traceable intake</h2><ul><li>CSV and XLSX sources are supported.</li><li>Review normalized records before confirmation.</li><li>Row-level errors remain visible for correction.</li><li>Every import retains source provenance.</li></ul></aside>
+      </section>
+      {error && <section className="notice" role="alert">{error}</section>}
       {document && (
-        <section aria-live="polite">
+        <section className="panel upload-result" aria-live="polite">
           <h2>{document.document.filename}</h2>
           {document.duplicate && <p>This file was already uploaded; showing the existing import.</p>}
           <p>
@@ -214,13 +206,13 @@ export default function Home() {
         </section>
       )}
       {records.length > 0 && (
-        <section>
+        <section className="panel">
           <h2>Normalized records ({records.length})</h2>
-          <pre style={{ overflowX: "auto" }}>{JSON.stringify(records, null, 2)}</pre>
+          <pre className="json-preview">{JSON.stringify(records, null, 2)}</pre>
         </section>
       )}
       {errors.length > 0 && (
-        <section>
+        <section className="panel">
           <h2>Row errors ({errors.length})</h2>
           <ul>
             {errors.map((rowError, index) => (

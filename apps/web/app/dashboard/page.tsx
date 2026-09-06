@@ -80,6 +80,7 @@ export default function DashboardPage() {
         <nav aria-label="Primary navigation">
           <Link href="/dashboard" aria-current="page">Dashboard</Link>
           <Link href="/">Documents</Link>
+          <Link href="/reconciliation">Reconciliation</Link>
         </nav>
       </header>
 
@@ -107,6 +108,37 @@ export default function DashboardPage() {
           <p>Upload a bank, ledger, invoice, payment, or settlement file. Parsed records are reviewed before import.</p>
         </div>
         <Link className="primary-action" href="/">Upload a document</Link>
+      </section>
+
+      <section className="dashboard-grid" aria-label="Operational insight">
+        <article className="insight-card">
+          <p className="eyebrow">Close health</p>
+          <h2>Reconciliation coverage</h2>
+          <div className="progress-row">
+            <span>Matched records</span>
+            <div className="progress-track"><i style={{ width: `${Math.min(100, metrics.reconciliation_rate)}%` }} /></div>
+            <b>{state === "loading" ? "—" : percent(metrics.reconciliation_rate)}</b>
+          </div>
+          <div className="progress-row">
+            <span>Automation</span>
+            <div className="progress-track"><i style={{ width: `${Math.min(100, metrics.automation_rate)}%` }} /></div>
+            <b>{state === "loading" ? "—" : percent(metrics.automation_rate)}</b>
+          </div>
+          <div className="mini-legend" aria-label="Status legend">
+            <span><i className="dot-mint" />cleared automatically</span>
+            <span><i className="dot-blue" />matched with evidence</span>
+            <span><i className="dot-amber" />requires review</span>
+          </div>
+        </article>
+        <aside className="run-card">
+          <p className="eyebrow">Today&apos;s focus</p>
+          <h2>Work requiring attention</h2>
+          <div className="run-list">
+            <div><span><i className="status-dot risk" />Financial exposure</span><strong>{state === "loading" ? "—" : money(metrics.amount_at_risk)}</strong></div>
+            <div><span><i className="status-dot watch" />Awaiting reviewer</span><strong>{state === "loading" ? "—" : number(metrics.pending_reviews)}</strong></div>
+            <div><span><i className="status-dot good" />Records reconciled</span><strong>{state === "loading" ? "—" : number(metrics.reconciled_count)}</strong></div>
+          </div>
+        </aside>
       </section>
 
       {metrics.updated_at ? <p className="updated">Updated {new Date(metrics.updated_at).toLocaleString("en-AU")}</p> : null}

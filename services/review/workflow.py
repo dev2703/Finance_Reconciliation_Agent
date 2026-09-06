@@ -51,13 +51,9 @@ class ReviewWorkflow:
         if review_id not in self.actions:
             raise KeyError(review_id)
         if self.decisions[review_id] is not PolicyDecision.HUMAN_REVIEW:
-            raise ValueError(
-                "Review has already been decided or is not awaiting human review"
-            )
+            raise ValueError("Review has already been decided or is not awaiting human review")
         self.decisions[review_id] = decision
-        self._audit(
-            "REVIEW_DECIDED", actor, review_id, {"decision": decision.value}, reason
-        )
+        self._audit("REVIEW_DECIDED", actor, review_id, {"decision": decision.value}, reason)
 
     def _audit(
         self,

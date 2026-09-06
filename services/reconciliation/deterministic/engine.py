@@ -373,9 +373,7 @@ def audit_events_for_results(
     events: list[AuditEvent] = []
     for result in results:
         entity_id = (
-            result.source_record_ids[0]
-            if result.source_record_ids
-            else result.target_record_ids[0]
+            result.source_record_ids[0] if result.source_record_ids else result.target_record_ids[0]
         )
         events.append(
             AuditEvent(
@@ -412,9 +410,7 @@ def _matched(
 
 def _same_external_id(source: FinancialRecord, target: FinancialRecord) -> bool:
     return bool(
-        source.external_id
-        and target.external_id
-        and source.external_id == target.external_id
+        source.external_id and target.external_id and source.external_id == target.external_id
     )
 
 
@@ -432,9 +428,7 @@ def _references(record: FinancialRecord) -> set[str]:
         "invoice_number",
     )
     return {
-        str(value).strip().casefold()
-        for field in fields
-        if (value := getattr(record, field, None))
+        str(value).strip().casefold() for field in fields if (value := getattr(record, field, None))
     }
 
 

@@ -10,7 +10,7 @@ For delivery phases, owners, acceptance criteria, and progress, use [agents.md](
 ## At a glance
 
 - **Product:** Bank, vendor, customer, and configurable business reconciliation.
-- **Pipeline:** Upload → normalize with provenance → deterministic matching → graph matching → ML ranking → bounded investigation → accounting validation → approval → audited action.
+- **Runtime pipeline:** Upload → normalize with provenance → deterministic matching → graph matching → bounded TensorMux/GLM investigation for unresolved cases → accounting validation → approval → audited action. The Phase 5 ML ranker is synthetic-demo-only until labeled match data exists.
 - **Stack:** Next.js frontend, FastAPI and a worker, PostgreSQL, and object storage.
 - **LLM boundary:** Compact evidence only; accounting arithmetic and final validation remain deterministic.
 - **AO boundary:** Development supervision only. FastAPI/PostgreSQL own runtime workflow state.
@@ -67,7 +67,7 @@ The system reconciles financial records across one or more source systems, const
 
 **The LLM is not the reconciliation engine and is not the source of accounting truth. The execution order is:**
 
-parse/validate → deterministic matching → graph/path matching → ML scoring → bounded LLM investigation only when needed → accounting validation → approval policy → action
+parse/validate → deterministic matching → graph/path matching → bounded TensorMux/GLM investigation only when unresolved → accounting validation → approval policy → action
 
 ### Agent principle
 
@@ -1319,7 +1319,7 @@ Deterministic + graph + ML.
 
 ### System C
 
-Deterministic + graph + ML + bounded GLM investigation.
+Deterministic + graph + bounded TensorMux/GLM investigation. The ML matcher remains optional and demo-only until labeled data exists.
 
 **Optionally:**
 

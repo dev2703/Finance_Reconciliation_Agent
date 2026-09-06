@@ -38,16 +38,11 @@ class AccountingValidator:
     closed_periods: set[tuple[int, int]] = field(default_factory=set)
     executed_keys: set[str] = field(default_factory=set)
 
-    def validate(
-        self, proposal: JournalProposal, policy: PolicyDecision
-    ) -> ValidationResult:
+    def validate(self, proposal: JournalProposal, policy: PolicyDecision) -> ValidationResult:
         reasons: list[str] = []
         if policy not in {PolicyDecision.AUTO_APPROVE, PolicyDecision.HUMAN_REVIEW}:
             reasons.append("POLICY_DISALLOWS_ACTION")
-        if (
-            not proposal.idempotency_key.strip()
-            or proposal.idempotency_key in self.executed_keys
-        ):
+        if not proposal.idempotency_key.strip() or proposal.idempotency_key in self.executed_keys:
             reasons.append("DUPLICATE_ACTION")
         if (proposal.period.year, proposal.period.month) in self.closed_periods:
             reasons.append("CLOSED_PERIOD")
@@ -60,9 +55,7 @@ class AccountingValidator:
         if not proposal.lines:
             reasons.append("EMPTY_JOURNAL")
         currencies = {line.currency.upper() for line in proposal.lines}
-        if len(currencies) != 1 or any(
-            len(currency) != 3 for currency in currencies
-        ):
+        if len(currencies) != 1 or any(len(currency) != 3 for currency in currencies):
             reasons.append("INVALID_CURRENCY")
         debit = sum((line.debit for line in proposal.lines), Decimal(0))
         credit = sum((line.credit for line in proposal.lines), Decimal(0))

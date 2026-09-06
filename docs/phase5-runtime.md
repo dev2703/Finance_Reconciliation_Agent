@@ -1,8 +1,8 @@
 # Phase 5 runtime integration
 
-Phase 5 trains a locally trusted candidate-ranking artifact and exposes it only
-as a review-suggestion service. It never approves, posts, or changes accounting
-records.
+Phase 5 trains a locally trusted candidate-ranking artifact for the synthetic
+demo only. It never approves, posts, or changes accounting records, and is not
+enabled in the normal runtime workflow without labeled match data.
 
 ## Train a local artifact
 
@@ -32,9 +32,9 @@ not safe to load artifacts from untrusted storage.
 
 ## Serve review-only suggestions
 
-Set `ML_MODEL_DIRECTORY` to the artifact directory before starting the API, or
+For the synthetic demo only, set `ML_MODEL_DIRECTORY` to the artifact directory before starting the API, or
 pass `ml_model_directory` to `create_app()` in an embedded deployment. Then use
-`POST /reconciliation/ml-review` with a complete batch of candidates. The
+`POST /demo/ml-review` with a complete batch of candidates. The
 endpoint returns `REVIEW` or `UNRESOLVED` only, rejects unavailable/incompatible
 artifacts with HTTP 503, and explicitly sets `automatic_action_eligible: false`.
 

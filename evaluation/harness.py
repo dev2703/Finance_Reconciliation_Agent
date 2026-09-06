@@ -39,8 +39,7 @@ def compare_custom_benchmark(
     deltas = {
         "precision": system_metrics.classification.precision
         - baseline_metrics.classification.precision,
-        "recall": system_metrics.classification.recall
-        - baseline_metrics.classification.recall,
+        "recall": system_metrics.classification.recall - baseline_metrics.classification.recall,
         "f1": system_metrics.classification.f1 - baseline_metrics.classification.f1,
         "false_positive_exposure": (
             system_metrics.risk.false_positive_financial_exposure

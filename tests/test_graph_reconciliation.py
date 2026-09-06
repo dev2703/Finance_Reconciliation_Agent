@@ -408,9 +408,7 @@ def test_reconcile_graph_selects_directed_split_allocation_before_pair_paths():
 
 
 def test_reconcile_graph_supports_declared_fee_adjusted_split_settlements():
-    payment = Payment(
-        amount=Decimal("100.00"), currency="USD", record_date=date(2026, 1, 10)
-    )
+    payment = Payment(amount=Decimal("100.00"), currency="USD", record_date=date(2026, 1, 10))
     settlements = [
         Settlement(
             settlement_reference="S-1",

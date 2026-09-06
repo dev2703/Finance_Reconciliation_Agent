@@ -19,8 +19,7 @@ def test_parse_decimal_supports_currency_and_parentheses() -> None:
 
 def test_parse_csv_normalizes_records_and_preserves_provenance() -> None:
     content = (
-        b"transaction id,total amount,transaction date,currency\n"
-        b'TX-1,"1,200.50",2026-01-15,USD\n'
+        b'transaction id,total amount,transaction date,currency\nTX-1,"1,200.50",2026-01-15,USD\n'
     )
 
     records = parse_csv(

@@ -93,8 +93,7 @@ def score_finrca(
             prediction.detected_exception
             if prediction.detected_exception is not None
             else (
-                prediction.predicted_label is not None
-                and _is_failure(prediction.predicted_label)
+                prediction.predicted_label is not None and _is_failure(prediction.predicted_label)
             )
         )
 

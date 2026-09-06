@@ -94,11 +94,13 @@ def score_reconriver(
         correct = prediction.predicted_label == case.label
         if is_hard_negative:
             hard_negative_count += 1
-            if prediction.auto_resolved or (
-                prediction.detected_exception is True
-            ) or (
-                prediction.predicted_label is not None
-                and prediction.predicted_label.upper() not in _HARD_NEGATIVE_LABELS
+            if (
+                prediction.auto_resolved
+                or (prediction.detected_exception is True)
+                or (
+                    prediction.predicted_label is not None
+                    and prediction.predicted_label.upper() not in _HARD_NEGATIVE_LABELS
+                )
             ):
                 hard_negative_fp += 1
                 fp_amounts.append(amount)

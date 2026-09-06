@@ -88,17 +88,11 @@ class ApprovalPolicy:
     def evaluate(self, context: PolicyContext) -> PolicyResult:
         missing = tuple(sorted(context.required_evidence - context.supplied_evidence))
         if missing:
-            return PolicyResult(
-                PolicyDecision.HUMAN_REVIEW, ("MISSING_EVIDENCE",), missing, None
-            )
+            return PolicyResult(PolicyDecision.HUMAN_REVIEW, ("MISSING_EVIDENCE",), missing, None)
         for index, rule in enumerate(self.rules):
             if _matches(rule.condition, context):
-                return PolicyResult(
-                    rule.action, rule.reason_codes, rule.required_evidence, index
-                )
-        return PolicyResult(
-            PolicyDecision.HUMAN_REVIEW, ("NO_AUTOMATION_RULE",), (), None
-        )
+                return PolicyResult(rule.action, rule.reason_codes, rule.required_evidence, index)
+        return PolicyResult(PolicyDecision.HUMAN_REVIEW, ("NO_AUTOMATION_RULE",), (), None)
 
 
 def _matches(condition: dict[str, Any], context: PolicyContext) -> bool:
@@ -108,9 +102,8 @@ def _matches(condition: dict[str, Any], context: PolicyContext) -> bool:
         if name == "amount_above" and not context.amount > Decimal(str(expected)):
             return False
         if name == "root_cause_confidence_below":
-            if (
-                context.root_cause_confidence is None
-                or context.root_cause_confidence >= Decimal(str(expected))
+            if context.root_cause_confidence is None or context.root_cause_confidence >= Decimal(
+                str(expected)
             ):
                 return False
         if name not in {"amount_below", "amount_above", "root_cause_confidence_below"}:

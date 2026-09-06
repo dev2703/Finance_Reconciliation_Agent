@@ -100,9 +100,7 @@ def normalize_blocking_key(
     return keys
 
 
-def build_entity_nodes(
-    records: Mapping[str, Iterable[FinancialRecord]]
-) -> dict[UUID, EntityNode]:
+def build_entity_nodes(records: Mapping[str, Iterable[FinancialRecord]]) -> dict[UUID, EntityNode]:
     """Convert financial records to entity nodes.
 
     Args:
@@ -158,7 +156,7 @@ def build_candidate_edges(
     Within blocked candidates, score using deterministic match_pair logic.
     """
     edges: list[CandidateEdge] = []
-    node_list = sorted(nodes.values(), key=lambda n: (str(n.record_id)))
+    node_list = sorted(nodes.values(), key=lambda n: str(n.record_id))
 
     for i, source_node in enumerate(node_list):
         for target_node in node_list[i + 1 :]:
@@ -314,9 +312,7 @@ def _allocation_group(
                 continue
             group_total = sum((node.amount for node in group), Decimal(0))
             fee = sum((_node_fee(node) for node in (anchor, *group)), Decimal(0))
-            difference = (
-                group_total - anchor.amount if many_to_one else anchor.amount - group_total
-            )
+            difference = group_total - anchor.amount if many_to_one else anchor.amount - group_total
             fee_adjusted = fee > 0 and difference == fee
             if difference != 0 and not fee_adjusted:
                 continue
@@ -387,9 +383,7 @@ def find_graph_paths(
         min_path_score = Decimal("0.50")
 
     # Build adjacency for path search
-    forward_edges: dict[UUID, list[tuple[UUID, Decimal, list[MatchReasonCode]]]] = defaultdict(
-        list
-    )
+    forward_edges: dict[UUID, list[tuple[UUID, Decimal, list[MatchReasonCode]]]] = defaultdict(list)
     for edge in edges:
         forward_edges[edge.source_node_id].append(
             (edge.target_node_id, edge.score, edge.reason_codes)

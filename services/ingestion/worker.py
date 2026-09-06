@@ -8,7 +8,7 @@ from uuid import UUID
 
 from apps.api.storage import DocumentStore
 from packages.contracts import AuditEvent, IngestionStatus, ParseError
-from services.ingestion.pdf import extract_pdf, _extract_tables_pdfplumber
+from services.ingestion.pdf import extract_pdf
 from services.ingestion.tabular import (
     TabularParseError,
     normalize_row,
@@ -112,10 +112,10 @@ def process_document(store: DocumentStore, document_id: UUID) -> None:
             document_id,
             "INGESTION_COMPLETED",
             {
-                "page_count": len(pdf_result), 
-                "record_count": len(records), 
+                "page_count": len(pdf_result),
+                "record_count": len(records),
                 "error_count": len(errors),
-                "extraction_methods": list(set(p.get("extraction_method") for p in pdf_result))
+                "extraction_methods": list(set(p.get("extraction_method") for p in pdf_result)),
             },
         )
         return
@@ -137,8 +137,7 @@ def process_document(store: DocumentStore, document_id: UUID) -> None:
             max_rows=MAX_ROWS,
         )
     records = [
-        record.model_copy(update={"source_document_id": document_id})
-        for record in result.records
+        record.model_copy(update={"source_document_id": document_id}) for record in result.records
     ]
     errors = [error.__dict__ for error in result.errors]
     status = IngestionStatus.FAILED if errors else IngestionStatus.PARSED
@@ -211,10 +210,7 @@ def _extract_records_from_pdf(
             if not rows:
                 continue
             header_row_index = min(rows)
-            headers = {
-                cell["column_index"]: cell["text"]
-                for cell in rows[header_row_index]
-            }
+            headers = {cell["column_index"]: cell["text"] for cell in rows[header_row_index]}
             for row_index, cells in sorted(rows.items()):
                 if row_index == header_row_index:
                     continue
@@ -255,7 +251,7 @@ def _extract_records_from_pdf(
                             message=str(exc),
                         )
                     )
-    
+
     return {"records": records, "errors": errors}
 
 

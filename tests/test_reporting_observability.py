@@ -28,9 +28,7 @@ def test_run_trace_correlates_events_and_aggregates_model_telemetry():
 
 
 def test_operational_reports_use_supplied_results_without_llm_calculation():
-    matched = ReconciliationItem(
-        source_record_ids=[uuid4()], status=ReconciliationStatus.MATCHED
-    )
+    matched = ReconciliationItem(source_record_ids=[uuid4()], status=ReconciliationStatus.MATCHED)
     exception = ReconciliationItem(
         source_record_ids=[uuid4()], status=ReconciliationStatus.EXCEPTION
     )

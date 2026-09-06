@@ -67,6 +67,64 @@ def test_reconciliation_api_supports_many_to_one_and_returns_audit_events(tmp_pa
     assert payload["audit_events"][0]["actor"] == "reconciliation_api"
 
 
+def test_reconciliation_runs_are_persisted_with_an_exception_queue(tmp_path) -> None:
+    client = TestClient(create_app(str(tmp_path / "runs.sqlite3")))
+    record = {"amount": "100.00", "currency": "USD", "record_date": "2026-01-10"}
+    response = client.post(
+        "/reconciliation/runs",
+        json={"sources": [record], "targets": [{**record, "amount": "99.00"}]},
+    )
+
+    assert response.status_code == 200
+    run = response.json()
+    assert run["status"] == "COMPLETED"
+    assert len(run["exceptions"]) == 2
+    assert client.get(f"/reconciliation/runs/{run['id']}").json()["id"] == run["id"]
+    assert (
+        client.get(f"/reconciliation/runs/{run['id']}/exceptions").json()["exceptions"]
+        == run["exceptions"]
+    )
+    assert client.get("/reconciliation/runs").json()["runs"][0]["id"] == run["id"]
+
+
+def test_unresolved_run_investigation_is_persisted_and_audited(tmp_path, monkeypatch) -> None:
+    def fake_investigation(**_: object) -> dict[str, object]:
+        return {
+            "output": {
+                "root_cause": "Timing difference",
+                "proposed_resolution": "Wait for clearing",
+                "confidence": "0.90",
+                "unresolved_questions": [],
+            },
+            "telemetry": {
+                "model": "glm-4-7b-flash",
+                "prompt_tokens": 20,
+                "completion_tokens": 10,
+                "latency_ms": 15,
+                "retry_count": 0,
+                "status": "success",
+                "estimated_cost": "0",
+            },
+        }
+
+    monkeypatch.setattr("apps.api.routes.investigate_unresolved_case", fake_investigation)
+    client = TestClient(create_app(str(tmp_path / "investigation.sqlite3")))
+    record = {"amount": "10.00", "currency": "USD", "record_date": "2026-01-10"}
+    run = client.post(
+        "/reconciliation/runs",
+        json={"sources": [record], "targets": [{**record, "amount": "11.00"}]},
+    ).json()
+
+    response = client.post(f"/reconciliation/runs/{run['id']}/investigate")
+    assert response.status_code == 200
+    assert response.json()["output"]["root_cause"] == "Timing difference"
+    saved = client.get(f"/reconciliation/runs/{run['id']}/investigations").json()
+    assert len(saved["investigations"]) == 1
+    assert client.get("/agent-traces").json()["traces"][0]["id"] == response.json()["id"]
+    events = client.get("/audit/events").json()["events"]
+    assert events[0]["event_type"] == "INVESTIGATION_COMPLETED"
+
+
 def test_ml_review_api_is_fail_closed_and_returns_review_only_suggestions(tmp_path) -> None:
     unconfigured = TestClient(create_app(str(tmp_path / "unconfigured.sqlite3")))
     candidate = {
@@ -95,7 +153,7 @@ def test_ml_review_api_is_fail_closed_and_returns_review_only_suggestions(tmp_pa
         ],
         "graph_score": "0.95",
     }
-    unavailable = unconfigured.post("/reconciliation/ml-review", json={"candidates": [candidate]})
+    unavailable = unconfigured.post("/demo/ml-review", json={"candidates": [candidate]})
     assert unavailable.status_code == 503
 
     dataset = write_synthetic_pairs(tmp_path / "pairs.jsonl", worlds=18)
@@ -104,7 +162,7 @@ def test_ml_review_api_is_fail_closed_and_returns_review_only_suggestions(tmp_pa
     client = TestClient(
         create_app(str(tmp_path / "configured.sqlite3"), ml_model_directory=artifact_dir)
     )
-    response = client.post("/reconciliation/ml-review", json={"candidates": [candidate]})
+    response = client.post("/demo/ml-review", json={"candidates": [candidate]})
 
     assert response.status_code == 200
     payload = response.json()
