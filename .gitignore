@@ -9,3 +9,4 @@ node_modules/
 *.tsbuildinfo
 agents.md
 plan.md
+.env.example
