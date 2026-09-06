@@ -720,23 +720,26 @@ and policy approval; policy must never use TensorMux ranker confidence as an `AU
 ### 9.5 Local-model migration and removal
 
 The merged local-model implementation is superseded; it is not a second production ranking path.
-The first migration PR deletes the local `/reconciliation/ml-review` behavior,
-`ML_MODEL_DIRECTORY`, and the two local Phase 5 runtime/demo documents. It moves provider-neutral
-dataset contracts/adapters into `evaluation/datasets/` without importing training code. Historical
-`services/ml/` training, calibration, artifact, model, workflow, selection, feature, and contract
-modules plus `evaluation/train_ml/` are deleted or moved under `evaluation/legacy_ml/`; no API or
-worker may import them.
+The first migration PR deletes the local `/demo/ml-review` behavior and any alias,
+`ML_MODEL_DIRECTORY`, and the two local Phase 5 runtime/demo documents. It also removes the optional
+synthetic-artifact statement from `docs/deployment.md`. API tests must prove no local-artifact route
+remains. The PR moves provider-neutral dataset contracts/adapters into `evaluation/datasets/`
+without importing training code. Historical `services/ml/` training, calibration, artifact, model,
+workflow, selection, feature, and contract modules plus `evaluation/train_ml/` are deleted or moved
+under `evaluation/legacy_ml/`; no API or worker may import them.
 
 Once TensorMux ranking passes its sealed acceptance gate, remove any remaining
 `evaluation/legacy_ml/` experiments. Retain only provider-neutral dataset adapters and evaluation
 metrics under `evaluation/`. There must be one production inference boundary: the versioned
 TensorMux decision manifest and shared gateway.
 
-Remove `scikit-learn`, `xgboost`, `joblib`, and `sentence-transformers` from runtime dependencies.
-`torch` and `transformers` remain only in the PDF/TATR worker dependency set, not because of ranking.
-Architecture tests must verify that production starts without model files or prohibited dependencies,
-the runtime import graph contains no `joblib.load`/`model.joblib` path, TensorMux manifest versions
-are recorded on outputs, and gateway failure yields `UNRESOLVED` without accounting mutation.
+Remove `scikit-learn`, `xgboost`, `joblib`, and `sentence-transformers` from
+`requirements-runtime.txt` and `pyproject.toml` `[project].dependencies`. `torch` and `transformers`
+remain only in the PDF/TATR worker dependency set, not because of ranking. Extend
+`tests/test_runtime_dependencies.py` with the prohibited-package assertion. Architecture tests must
+also verify that production starts without model files, the runtime import graph contains no
+`joblib.load`/`model.joblib` path, TensorMux manifest versions are recorded on outputs, and gateway
+failure yields `UNRESOLVED` without accounting mutation.
 
 ## Section 10. Ground-truth datasets and how each is used
 

@@ -563,15 +563,18 @@ prompt execution, and telemetry. Neither may duplicate the other's gateway or ra
 
 The first implementation PR must remove the local runtime before adding TensorMux ranking:
 
-1. Delete `/reconciliation/ml-review`, `ML_MODEL_DIRECTORY`, `docs/phase5-runtime.md`, and
-   `docs/phase5-synthetic-demo.md`; update API tests to prove the route is absent.
+1. Delete `/demo/ml-review` and any alias, `ML_MODEL_DIRECTORY`, `docs/phase5-runtime.md`, and
+   `docs/phase5-synthetic-demo.md`; remove the optional-artifact statement from
+   `docs/deployment.md`, and update API tests to prove every local-artifact route is absent.
 2. Move provider-neutral dataset contracts/adapters into `evaluation/datasets/` and break their
    import of `services.ml.training`; retain no training-example converter in the runtime graph.
 3. Move any historically useful local-model experiments under `evaluation/legacy_ml/`, or delete
    them. Production packages must not import `services/ml/{training,calibration,artifact,model,
    workflow,selection,features,contracts}` or its package `__init__`.
-4. Remove `scikit-learn`, `xgboost`, `joblib`, and `sentence-transformers` from production/runtime
-   dependencies. Retain `torch`/`transformers` only in the PDF/TATR worker dependency set. Use
+4. Remove `scikit-learn`, `xgboost`, `joblib`, and `sentence-transformers` from
+   `requirements-runtime.txt` and `pyproject.toml` `[project].dependencies`. Retain
+   `torch`/`transformers` only in the PDF/TATR worker dependency set. Extend
+   `tests/test_runtime_dependencies.py` to assert the four prohibited packages are absent, and use
    deterministic string similarity instead of local description embeddings.
 
 Required tests must prove that the production runtime uses a versioned TensorMux decision manifest,
