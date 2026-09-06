@@ -1299,8 +1299,8 @@ AO workers should be assigned leaf features with clear acceptance tests, not vag
 - **Owner:** Agent M
 - **Branch/PR:** Local Neatlogs integration; PR not opened
 - **Status:** [~] IN_PROGRESS
-- **Files:** `apps/api/`, `services/agents/`, `.env.example`, `infra/docker-compose.yml`, `docs/deployment.md`, `tests/test_neatlogs_config.py`
-- **Tests:** Focused Ruff checks pass; Neatlogs, TensorMux, API, and local observability tests pass (23 tests)
+- **Files:** `apps/api/`, `services/agents/`, `.env.example`, `infra/docker-compose.yml`, `requirements-runtime.txt`, `docs/deployment.md`, `tests/test_neatlogs_config.py`, `tests/test_runtime_dependencies.py`
+- **Tests:** Focused Ruff checks pass; Neatlogs, TensorMux, API, local observability, and runtime dependency regression tests pass
 - **Benchmark result:** Not applicable
 - **Known limitations:** Live export has not been accepted against a deployed Neatlogs project key
 - **Next dependency:** Configure `NEATLOGS_API_KEY` in the Python deployment and verify exported investigation traces
