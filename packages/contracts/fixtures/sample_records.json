@@ -1,0 +1,20 @@
+{
+  "invoice": {
+    "id": "00000000-0000-0000-0000-000000000001",
+    "invoice_number": "INV-1001",
+    "amount": "1200.00",
+    "currency": "USD",
+    "record_date": "2026-01-15",
+    "vendor_id": "vendor-42",
+    "tax_amount": "100.00"
+  },
+  "payment": {
+    "id": "00000000-0000-0000-0000-000000000002",
+    "payment_reference": "PAY-1001",
+    "amount": "1200.00",
+    "currency": "USD",
+    "record_date": "2026-01-20",
+    "payer_id": "customer-7",
+    "payee_id": "vendor-42"
+  }
+}
