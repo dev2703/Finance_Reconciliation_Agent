@@ -23,7 +23,8 @@ class TensorMuxSettings(BaseSettings):
 
     base_url: str = "http://localhost:8080/v1"
     api_key: SecretStr
-    model: str = "glm-4.7-flash"
+    # TensorMux exposes this configured gateway route for GLM-4.7-Flash.
+    model: str = "glm-4-7-flash"
     timeout_seconds: float = Field(default=30.0, gt=0, le=300)
     max_retries: int = Field(default=2, ge=0, le=5)
     input_cost_per_million: Decimal = Field(default=Decimal(0), ge=0)
@@ -51,6 +52,21 @@ class TensorMuxError(RuntimeError):
     def __init__(self, message: str, telemetry: ModelCallTelemetry) -> None:
         super().__init__(message)
         self.telemetry = telemetry
+
+
+def _gateway_schema(value: Any) -> Any:
+    """Remove JSON Schema features unsupported by TensorMux guided decoding.
+
+    Pydantic emits a look-ahead regex for Decimal fields. TensorMux forwards the
+    schema to a grammar engine which rejects look-around expressions. The model
+    output is still validated against the original Pydantic model after receipt,
+    so this relaxes generation syntax only, not the application contract.
+    """
+    if isinstance(value, dict):
+        return {key: _gateway_schema(child) for key, child in value.items() if key != "pattern"}
+    if isinstance(value, list):
+        return [_gateway_schema(child) for child in value]
+    return value
 
 
 class TensorMuxClient:
@@ -99,7 +115,7 @@ class TensorMuxClient:
                 "json_schema": {
                     "name": output_type.__name__,
                     "strict": True,
-                    "schema": output_type.model_json_schema(),
+                    "schema": _gateway_schema(output_type.model_json_schema()),
                 },
             },
         }

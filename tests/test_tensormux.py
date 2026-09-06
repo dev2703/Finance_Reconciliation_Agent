@@ -90,6 +90,29 @@ def test_structured_call_validates_output_and_records_telemetry():
     assert captured[0]["response_format"]["json_schema"]["strict"] is True
 
 
+def test_gateway_schema_removes_decimal_regex_but_keeps_response_validation():
+    captured: list[dict] = []
+    content = '{"root_cause":null,"confidence":"0.5","unresolved_questions":[]}'
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(__import__("json").loads(request.content))
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": content}}]},
+        )
+
+    client = TensorMuxClient(
+        _settings(), http_client=httpx.Client(transport=httpx.MockTransport(handler))
+    )
+    result = client.generate_structured(
+        EvidencePrompt(task=AgentTask.INVESTIGATION, expected_schema={}, evidence=[]),
+        InvestigationOutput,
+    )
+    schema = __import__("json").dumps(captured[0]["response_format"]["json_schema"]["schema"])
+    assert '"pattern"' not in schema
+    assert result.output.confidence == Decimal("0.5")
+
+
 def test_retryable_failure_retries_and_reports_count():
     calls = 0
 
