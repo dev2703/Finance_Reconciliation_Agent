@@ -28,7 +28,7 @@ This is the single current phase-status overview, based on the local review on *
 | 10 | [FastAPI application](#phase-10--fastapi-application) | `IN_PROGRESS` | Persisted reconciliation, exceptions, TensorMux investigations, approvals, reports, audit, traces, ingestion, and demo routes exist; durable async reconciliation jobs remain. |
 | 11 | [Frontend foundation](#phase-11--frontend-foundation) | `IN_PROGRESS` | Upload and dashboard views with the finance visual foundation exist; broader UI foundation remains. |
 | 12 | [Reconciliation + exception UI](#phase-12--reconciliation--exception-ui) | `IN_PROGRESS` | Run workspace, exception queue, investigation/evidence view, and approval UI exist; deeper graph visualization remains. |
-| 13 | [Reporting + observability](#phase-13--reporting--observability) | `IN_PROGRESS` | Persisted GLM telemetry, global audit/trace APIs, operational reports, and report/trace UI exist; Neatlogs export remains. |
+| 13 | [Reporting + observability](#phase-13--reporting--observability) | `IN_PROGRESS` | Persisted GLM telemetry, global audit/trace APIs, operational reports, report/trace UI, and credential-gated Neatlogs instrumentation exist; live export acceptance remains. |
 | 14 | [Plaid sandbox connector](#phase-14--plaid-sandbox-connector) | `IN_PROGRESS` | Sandbox client, custom transaction simulation, webhook trigger, and bank-record normalization are implemented and mock-tested; live Sandbox acceptance remains. |
 | 15 | [Stripe sandbox connector](#phase-15--stripe-sandbox-connector) | `IN_PROGRESS` | Sandbox PaymentIntent/event/balance-transaction client and payment/settlement normalization are implemented and mock-tested; live Sandbox acceptance remains. |
 | 16 | [Reliability / performance hardening](#phase-16--reliability--performance-hardening) | `IN_PROGRESS` | Ingestion retries and upload deduplication exist; restart recovery and performance acceptance remain incomplete. |
@@ -888,8 +888,9 @@ evidence, decision, guardrail, completion, and failure events; trace UI remains 
 
 Wire traces around agent calls/tools/guardrails and preserve local run IDs for correlation.
 
-**Status: Local trace seam implemented.** External Neatlogs export is not configured; local run
-events are always retained by the in-process append-only trace pending database persistence.
+**Status: IN_PROGRESS.** Credential-gated Neatlogs workflow, route, agent-chain, and TensorMux LLM
+instrumentation are configured; local run events remain available without external export. Live
+export acceptance with a deployed project key remains.
 
 ### Phase 13 exit gate
 
@@ -1292,6 +1293,17 @@ AO workers should be assigned leaf features with clear acceptance tests, not vag
 - **Benchmark result:** Phase 4 comparative benchmark remains pending
 - **Known limitations:** Reconciliation API is stateless; structured extraction model fallback and broad scanned/no-border fixture packs remain integration acceptance
 - **Next dependency:** Persist reconciliation runs, connect low-confidence extraction to the Phase 8 model client, and benchmark graph resolution against deterministic-only cases
+
+### Phase 13 Neatlogs integration entry — 2026-09-07
+
+- **Owner:** Agent M
+- **Branch/PR:** Local Neatlogs integration; PR not opened
+- **Status:** [~] IN_PROGRESS
+- **Files:** `apps/api/`, `services/agents/`, `.env.example`, `infra/docker-compose.yml`, `docs/deployment.md`, `tests/test_neatlogs_config.py`
+- **Tests:** Focused Ruff checks pass; Neatlogs, TensorMux, API, and local observability tests pass (23 tests)
+- **Benchmark result:** Not applicable
+- **Known limitations:** Live export has not been accepted against a deployed Neatlogs project key
+- **Next dependency:** Configure `NEATLOGS_API_KEY` in the Python deployment and verify exported investigation traces
 
 ## Final acceptance checklist
 

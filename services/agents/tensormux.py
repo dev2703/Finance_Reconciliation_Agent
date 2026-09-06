@@ -9,6 +9,7 @@ from decimal import Decimal
 from typing import Any
 
 import httpx
+import neatlogs
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -123,56 +124,71 @@ class TensorMuxClient:
         last_error = "TensorMux request failed"
         attempts = self.settings.max_retries + 1
 
-        for attempt in range(attempts):
-            try:
-                response = self._http.post(
-                    f"{self.settings.base_url.rstrip('/')}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {self.settings.api_key.get_secret_value()}",
-                        "Content-Type": "application/json",
-                    },
-                    json=payload,
-                    timeout=self.settings.timeout_seconds,
-                )
-                if response.status_code in self._RETRYABLE_STATUS and attempt + 1 < attempts:
-                    last_error = f"TensorMux returned HTTP {response.status_code}"
-                    self._sleep(0.25 * (2**attempt))
-                    continue
-                response.raise_for_status()
-                body = response.json()
-                content = body["choices"][0]["message"]["content"]
-                if isinstance(content, str):
-                    content = json.loads(content)
-                output = output_type.model_validate(content)
-                telemetry = self._telemetry(
-                    body, started, attempt, "success", case_id, agent_run_id
-                )
-                self._emit(telemetry)
-                return StructuredModelResult(output=output, telemetry=telemetry)
-            except (httpx.TransportError, httpx.HTTPStatusError) as exc:
-                if isinstance(exc, httpx.HTTPStatusError):
-                    # The provider's diagnostic is safe for server logs and is
-                    # essential when a gateway rejects an otherwise compatible
-                    # request. It is never returned to the browser and is kept
-                    # short to avoid logging response bodies unexpectedly.
-                    detail = exc.response.text.replace("\n", " ")[:500]
-                    last_error = f"TensorMux returned HTTP {exc.response.status_code}: {detail}"
-                else:
-                    last_error = str(exc)
-                retryable = isinstance(exc, httpx.TransportError) or (
-                    exc.response.status_code in self._RETRYABLE_STATUS
-                )
-                if retryable and attempt + 1 < attempts:
-                    self._sleep(0.25 * (2**attempt))
-                    continue
-                break
-            except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
-                last_error = f"Invalid structured TensorMux response: {exc}"
-                break
+        messages = payload.get("messages", [])
+        input_text = json.dumps(messages)
+        with neatlogs.trace("tensormux_llm", kind="LLM") as span:
+            span.set_attribute("neatlogs.llm.model_name", self.settings.model)
+            span.set_attribute("neatlogs.llm.input", input_text)
+            for attempt in range(attempts):
+                try:
+                    response = self._http.post(
+                        f"{self.settings.base_url.rstrip('/')}/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {self.settings.api_key.get_secret_value()}",
+                            "Content-Type": "application/json",
+                        },
+                        json=payload,
+                        timeout=self.settings.timeout_seconds,
+                    )
+                    if response.status_code in self._RETRYABLE_STATUS and attempt + 1 < attempts:
+                        last_error = f"TensorMux returned HTTP {response.status_code}"
+                        self._sleep(0.25 * (2**attempt))
+                        continue
+                    response.raise_for_status()
+                    body = response.json()
+                    content = body["choices"][0]["message"]["content"]
+                    if isinstance(content, str):
+                        content = json.loads(content)
+                    output = output_type.model_validate(content)
+                    telemetry = self._telemetry(
+                        body, started, attempt, "success", case_id, agent_run_id
+                    )
+                    usage = body.get("usage", {})
+                    span.set_attribute("neatlogs.llm.output", json.dumps(content))
+                    span.set_attribute(
+                        "neatlogs.llm.prompt_tokens", int(usage.get("prompt_tokens", 0))
+                    )
+                    span.set_attribute(
+                        "neatlogs.llm.completion_tokens",
+                        int(usage.get("completion_tokens", 0)),
+                    )
+                    self._emit(telemetry)
+                    return StructuredModelResult(output=output, telemetry=telemetry)
+                except (httpx.TransportError, httpx.HTTPStatusError) as exc:
+                    if isinstance(exc, httpx.HTTPStatusError):
+                        # The provider's diagnostic is safe for server logs and is
+                        # essential when a gateway rejects an otherwise compatible
+                        # request. It is never returned to the browser and is kept
+                        # short to avoid logging response bodies unexpectedly.
+                        detail = exc.response.text.replace("\n", " ")[:500]
+                        last_error = f"TensorMux returned HTTP {exc.response.status_code}: {detail}"
+                    else:
+                        last_error = str(exc)
+                    retryable = isinstance(exc, httpx.TransportError) or (
+                        exc.response.status_code in self._RETRYABLE_STATUS
+                    )
+                    if retryable and attempt + 1 < attempts:
+                        self._sleep(0.25 * (2**attempt))
+                        continue
+                    break
+                except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                    last_error = f"Invalid structured TensorMux response: {exc}"
+                    break
 
-        telemetry = self._telemetry({}, started, attempt, "error", case_id, agent_run_id)
-        self._emit(telemetry)
-        raise TensorMuxError(last_error, telemetry)
+            span.set_attribute("neatlogs.llm.output", last_error)
+            telemetry = self._telemetry({}, started, attempt, "error", case_id, agent_run_id)
+            self._emit(telemetry)
+            raise TensorMuxError(last_error, telemetry)
 
     def _telemetry(
         self,

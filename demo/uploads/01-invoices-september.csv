@@ -1,0 +1,5 @@
+invoice_number,external_id,amount,currency,date,vendor_id,due_date,tax_amount,description
+INV-2026-091,INV-2026-091,1250.00,AUD,2026-09-01,NORTHWIND-OPS,2026-09-30,113.64,September platform subscription
+INV-2026-092,INV-2026-092,480.50,AUD,2026-09-03,BLUEPEAK-STUDIO,2026-10-03,43.68,Creative services milestone
+INV-2026-093,INV-2026-093,2200.00,AUD,2026-09-05,ACME-FREIGHT,2026-10-05,200.00,Quarterly freight retainer
+INV-2026-094,INV-2026-094,795.25,AUD,2026-09-08,RIVERBEND-SOFTWARE,2026-10-08,72.30,Analytics renewal

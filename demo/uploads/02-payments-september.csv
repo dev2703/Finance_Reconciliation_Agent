@@ -1,0 +1,5 @@
+external_id,amount,currency,date,payment_reference,description
+PAY-2026-501,1250.00,AUD,2026-09-02,INV-2026-091,Northwind Operations payment for September subscription
+PAY-2026-502,480.50,AUD,2026-09-04,INV-2026-092,Bluepeak Studio payment for milestone invoice
+PAY-2026-503,2200.00,AUD,2026-09-09,INV-2026-093,Acme Freight payment received after weekend clearing
+PAY-2026-504,795.25,AUD,2026-09-10,INV-2026-094,Riverbend Software renewal payment

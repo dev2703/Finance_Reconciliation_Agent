@@ -5,6 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+import neatlogs
 from pydantic import Field
 
 from packages.contracts.models import ContractModel
@@ -20,6 +21,7 @@ class InvestigationFinding(ContractModel):
     unresolved_questions: list[str] = Field(default_factory=list)
 
 
+@neatlogs.span(kind="CHAIN")
 def investigate_unresolved_case(
     *,
     case_id: str,

@@ -1,11 +1,28 @@
 import os
 from pathlib import Path
 
+import neatlogs
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .routes import create_router
 from .storage import DocumentStore
+
+
+def _configure_neatlogs() -> None:
+    """Enable external tracing only when deployment credentials are configured."""
+    api_key = os.getenv("NEATLOGS_API_KEY")
+    if not api_key:
+        return
+    neatlogs.init(
+        api_key=api_key,
+        endpoint=os.getenv("NEATLOGS_ENDPOINT", "K9wVuaPutltz-DGc3T6xrdM_1pCRQO5J"),
+        workflow_name="finance-reconciliation-investigation",
+        instrumentations=["openai"],
+    )
+
+
+_configure_neatlogs()
 
 API_TITLE = "Finance Reconciliation API"
 API_VERSION = "0.1.0"

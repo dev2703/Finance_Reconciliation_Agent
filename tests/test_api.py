@@ -97,7 +97,7 @@ def test_unresolved_run_investigation_is_persisted_and_audited(tmp_path, monkeyp
                 "unresolved_questions": [],
             },
             "telemetry": {
-                "model": "glm-4.7-flash",
+                "model": "glm-4-7-flash",
                 "prompt_tokens": 20,
                 "completion_tokens": 10,
                 "latency_ms": 15,

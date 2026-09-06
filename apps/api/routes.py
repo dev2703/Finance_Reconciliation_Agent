@@ -11,6 +11,7 @@ from io import BytesIO
 from pathlib import Path
 from uuid import UUID, uuid4
 
+import neatlogs
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import Field
 
@@ -84,6 +85,7 @@ def create_router(store: DocumentStore, ml_model_directory: Path | None = None) 
         )
 
     @router.post("/reconciliation/match")
+    @neatlogs.span(kind="WORKFLOW")
     def reconcile(request: ReconciliationRequest) -> dict[str, object]:
         results = reconcile_records(
             request.sources,
@@ -98,6 +100,7 @@ def create_router(store: DocumentStore, ml_model_directory: Path | None = None) 
         }
 
     @router.post("/reconciliation/runs")
+    @neatlogs.span(kind="WORKFLOW")
     def create_reconciliation_run(request: ReconciliationRequest) -> dict[str, object]:
         results = reconcile_records(
             request.sources,
@@ -141,6 +144,7 @@ def create_router(store: DocumentStore, ml_model_directory: Path | None = None) 
         return {"run_id": str(run_id), "exceptions": run["exceptions"]}
 
     @router.post("/reconciliation/runs/{run_id}/investigate")
+    @neatlogs.span(kind="WORKFLOW")
     def investigate_run(run_id: UUID) -> dict[str, object]:
         run = store.get_reconciliation_run(str(run_id))
         if run is None:
@@ -163,7 +167,7 @@ def create_router(store: DocumentStore, ml_model_directory: Path | None = None) 
         store.add_audit(
             AuditEvent(
                 event_type="INVESTIGATION_COMPLETED",
-                actor="glm-4.7-flash",
+                actor=result["telemetry"]["model"],
                 entity_type="ReconciliationRun",
                 entity_id=run_id,
                 occurred_at=datetime.now(UTC),
@@ -282,6 +286,7 @@ def create_router(store: DocumentStore, ml_model_directory: Path | None = None) 
         return {"traces": store.list_all_investigations(limit=limit)}
 
     @router.post("/demo/seed-and-run")
+    @neatlogs.span(kind="WORKFLOW")
     def seed_and_run_demo() -> dict[str, object]:
         """Seed the Phase 19 demo pack and persist one reconciliation run."""
         from evaluation.demo import build_demo_cases
@@ -340,6 +345,7 @@ def create_router(store: DocumentStore, ml_model_directory: Path | None = None) 
         return {"suggestions": suggestions, "mode": "REVIEW_ONLY"}
 
     @router.post("/documents/upload")
+    @neatlogs.span(kind="WORKFLOW")
     async def upload_document(
         file: UploadFile = File(...),
         record_type: str = Form("invoice"),

@@ -1,0 +1,7 @@
+external_id,amount,currency,date,account_id,transaction_type,bank_reference,value_date,description
+BNK-2026-701,1250.00,AUD,2026-09-02,OPERATING-001,deposit,INV-2026-091,2026-09-02,Northwind subscription receipt
+BNK-2026-702,480.50,AUD,2026-09-04,OPERATING-001,deposit,INV-2026-092,2026-09-04,Bluepeak milestone receipt
+BNK-2026-703,2178.00,AUD,2026-09-10,OPERATING-001,deposit,INV-2026-093,2026-09-10,Acme settlement net of processing fee
+BNK-2026-704,795.25,AUD,2026-09-14,OPERATING-001,deposit,INV-2026-094,2026-09-14,Riverbend receipt delayed by clearing window
+BNK-2026-705,(65.00),AUD,2026-09-15,OPERATING-001,fee,BANK-FEE-SEP,2026-09-15,Monthly merchant processing fee
+BNK-2026-706,342.10,AUD,2026-09-16,OPERATING-001,deposit,UNKNOWN-REMITTANCE,2026-09-16,Unidentified customer remittance requires investigation

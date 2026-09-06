@@ -10,7 +10,7 @@ Set these variables in the API/worker runtime. Never commit the real API key.
 ```text
 TENSORMUX_BASE_URL=https://your-gateway.example/v1
 TENSORMUX_API_KEY=...
-TENSORMUX_MODEL=glm-4.7-flash
+TENSORMUX_MODEL=glm-4-7-flash
 TENSORMUX_TIMEOUT_SECONDS=30
 TENSORMUX_MAX_RETRIES=2
 TENSORMUX_INPUT_COST_PER_MILLION=0

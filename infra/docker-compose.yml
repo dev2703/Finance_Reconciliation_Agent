@@ -23,9 +23,11 @@ services:
       DATABASE_URL: postgresql://finance_app:finance_app_dev@postgres:5432/finance_reconciliation
       OBJECT_STORAGE_PATH: /data/objects
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      NEATLOGS_API_KEY: ${NEATLOGS_API_KEY:-}
+      NEATLOGS_ENDPOINT: ${NEATLOGS_ENDPOINT:-K9wVuaPutltz-DGc3T6xrdM_1pCRQO5J}
       TENSORMUX_BASE_URL: ${TENSORMUX_BASE_URL:-http://host.docker.internal:8080/v1}
       TENSORMUX_API_KEY: ${TENSORMUX_API_KEY:-replace-me}
-      TENSORMUX_MODEL: ${TENSORMUX_MODEL:-glm-4.7-flash}
+      TENSORMUX_MODEL: ${TENSORMUX_MODEL:-glm-4-7-flash}
     ports:
       - "8001:8000"
     depends_on:

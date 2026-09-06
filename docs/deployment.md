@@ -25,12 +25,18 @@ Deploy the repository root as a Docker-based Python web service. The root
 DATABASE_URL=postgresql://...
 CORS_ORIGINS=https://your-project.vercel.app
 OBJECT_STORAGE_PATH=/tmp/finance-objects
+NEATLOGS_API_KEY=your-neatlogs-project-key
+NEATLOGS_ENDPOINT=K9wVuaPutltz-DGc3T6xrdM_1pCRQO5J
 TENSORMUX_BASE_URL=https://your-tensormux-gateway.example/v1
 TENSORMUX_API_KEY=your-secret-gateway-token
-TENSORMUX_MODEL=glm-4.7-flash
+TENSORMUX_MODEL=glm-4-7-flash
 TENSORMUX_TIMEOUT_SECONDS=30
 TENSORMUX_MAX_RETRIES=2
 ```
+
+When `NEATLOGS_API_KEY` is set, the API initializes the
+`finance-reconciliation-investigation` workflow with OpenAI instrumentation.
+Without the key, external export stays disabled and the local persisted trace remains available.
 
 `OBJECT_STORAGE_PATH=/tmp/finance-objects` is deliberately ephemeral and is
 safe only for the seed/demo flow. Do not present uploads on this deployment as
