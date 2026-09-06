@@ -134,7 +134,15 @@ class TensorMuxClient:
                 self._emit(telemetry)
                 return StructuredModelResult(output=output, telemetry=telemetry)
             except (httpx.TransportError, httpx.HTTPStatusError) as exc:
-                last_error = str(exc)
+                if isinstance(exc, httpx.HTTPStatusError):
+                    # The provider's diagnostic is safe for server logs and is
+                    # essential when a gateway rejects an otherwise compatible
+                    # request. It is never returned to the browser and is kept
+                    # short to avoid logging response bodies unexpectedly.
+                    detail = exc.response.text.replace("\n", " ")[:500]
+                    last_error = f"TensorMux returned HTTP {exc.response.status_code}: {detail}"
+                else:
+                    last_error = str(exc)
                 retryable = isinstance(exc, httpx.TransportError) or (
                     exc.response.status_code in self._RETRYABLE_STATUS
                 )
