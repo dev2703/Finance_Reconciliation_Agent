@@ -202,3 +202,52 @@ class AuditEvent(ContractModel):
     occurred_at: datetime
     reason: str | None = None
     details: dict[str, Any] = Field(default_factory=dict)
+
+
+# ============================================================================
+# PHASE 4: Graph Reconciliation Schema
+# ============================================================================
+
+
+class EntityNode(ContractModel):
+    """A node in the financial graph—a single record."""
+
+    record_id: UUID
+    record_type: str  # "invoice", "payment", "settlement", "bank_transaction", "ledger_entry", etc.
+    amount: Decimal
+    currency: str = Field(min_length=3, max_length=3)
+    record_date: date
+    normalized_party: str | None = None  # normalized vendor/payer/account identifier
+    reference: str | None = None  # invoice number, check number, transaction ID, etc.
+    amount_bucket: int | None = None  # for blocking: round(log10(amount)) * 10 for grouping
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class CandidateEdge(ContractModel):
+    """A potential match between two nodes, scored but not yet ranked."""
+
+    source_node_id: UUID
+    target_node_id: UUID
+    score: Decimal = Field(default=Decimal(0), ge=0, le=1)
+    reason_codes: list[MatchReasonCode] = Field(default_factory=list)
+    evidence_ids: list[UUID] = Field(default_factory=list)
+
+
+class GraphPath(ContractModel):
+    """A complete lineage path through the financial graph."""
+
+    node_ids: list[UUID]  # ordered sequence: source -> intermediate -> ... -> target
+    edge_scores: list[Decimal] = Field(default_factory=list)  # score for each edge
+    reason_code_sequence: list[list[MatchReasonCode]] = Field(default_factory=list)
+    total_confidence: Decimal = Field(default=Decimal(0), ge=0, le=1)
+    allocations: list[Allocation] = Field(default_factory=list)
+
+
+class FinancialGraph(ContractModel):
+    """A multi-hop reconciliation graph connecting all record types."""
+
+    nodes: dict[UUID, EntityNode] = Field(default_factory=dict)
+    candidate_edges: list[CandidateEdge] = Field(default_factory=list)
+    selected_paths: list[GraphPath] = Field(default_factory=list)
+    unmatched_node_ids: set[UUID] = Field(default_factory=set)
+    blocked_edge_pairs: set[tuple[UUID, UUID]] = Field(default_factory=set)

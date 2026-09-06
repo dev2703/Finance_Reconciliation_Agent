@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
 from itertools import combinations
-from typing import Any, Iterable
 from uuid import UUID
 
 from packages.contracts import (
@@ -17,6 +18,29 @@ from packages.contracts import (
 
 DEFAULT_DATE_WINDOW_DAYS = 3
 DEFAULT_MAX_ALLOCATION_GROUP_SIZE = 4
+
+
+@dataclass(frozen=True)
+class ReconciliationStage:
+    """One deterministic edge in a configured reconciliation graph."""
+
+    name: str
+    sources: Sequence[FinancialRecord]
+    targets: Sequence[FinancialRecord]
+    date_window_days: int = DEFAULT_DATE_WINDOW_DAYS
+    max_allocation_group_size: int = DEFAULT_MAX_ALLOCATION_GROUP_SIZE
+
+
+@dataclass
+class ReconciliationRun:
+    """Results and audit events for a deterministic reconciliation workflow."""
+
+    results: dict[str, list[MatchResult]] = field(default_factory=dict)
+    audit_events: list[AuditEvent] = field(default_factory=list)
+
+    @property
+    def all_results(self) -> list[MatchResult]:
+        return [result for stage in self.results.values() for result in stage]
 
 
 def match_pair(
@@ -33,7 +57,7 @@ def match_pair(
             source_record_ids=[source.id],
             target_record_ids=[target.id],
             status=ReconciliationStatus.EXCEPTION,
-            confidence=Decimal("0"),
+            confidence=Decimal(0),
             reason_codes=[MatchReasonCode.CURRENCY_MISMATCH],
         )
 
@@ -71,7 +95,7 @@ def match_pair(
         source_record_ids=[source.id],
         target_record_ids=[target.id],
         status=ReconciliationStatus.UNMATCHED,
-        confidence=Decimal("0"),
+        confidence=Decimal(0),
         reason_codes=[MatchReasonCode.UNMATCHED],
     )
 
@@ -147,6 +171,110 @@ def reconcile_records(
     return results
 
 
+def reconcile_configured_graph(stages: Iterable[ReconciliationStage]) -> ReconciliationRun:
+    """Run a deterministic, ordered set of configured source-to-target stages."""
+    run = ReconciliationRun()
+    for stage in stages:
+        if stage.name in run.results:
+            raise ValueError(f"Duplicate reconciliation stage: {stage.name}")
+        stage_results = reconcile_records(
+            stage.sources,
+            stage.targets,
+            date_window_days=stage.date_window_days,
+            max_allocation_group_size=stage.max_allocation_group_size,
+        )
+        run.results[stage.name] = stage_results
+        run.audit_events.extend(audit_events_for_results(stage_results))
+    return run
+
+
+def reconcile_bank(
+    bank_transactions: Iterable[FinancialRecord],
+    ledger_entries: Iterable[FinancialRecord],
+    *,
+    date_window_days: int = DEFAULT_DATE_WINDOW_DAYS,
+    max_allocation_group_size: int = DEFAULT_MAX_ALLOCATION_GROUP_SIZE,
+) -> ReconciliationRun:
+    """Reconcile bank activity to the cash ledger, including outstanding items."""
+    return reconcile_configured_graph(
+        [
+            ReconciliationStage(
+                "bank_to_ledger",
+                list(bank_transactions),
+                list(ledger_entries),
+                date_window_days,
+                max_allocation_group_size,
+            )
+        ]
+    )
+
+
+def reconcile_vendor(
+    purchase_orders: Iterable[FinancialRecord],
+    invoices: Iterable[FinancialRecord],
+    ap_entries: Iterable[FinancialRecord],
+    payments: Iterable[FinancialRecord],
+    *,
+    date_window_days: int = DEFAULT_DATE_WINDOW_DAYS,
+    max_allocation_group_size: int = DEFAULT_MAX_ALLOCATION_GROUP_SIZE,
+) -> ReconciliationRun:
+    """Reconcile the vendor chain PO -> invoice -> AP -> payment."""
+    return reconcile_configured_graph(
+        [
+            ReconciliationStage(
+                "purchase_order_to_invoice",
+                list(purchase_orders),
+                list(invoices),
+                date_window_days,
+                max_allocation_group_size,
+            ),
+            ReconciliationStage(
+                "invoice_to_ap",
+                list(invoices),
+                list(ap_entries),
+                date_window_days,
+                max_allocation_group_size,
+            ),
+            ReconciliationStage(
+                "ap_to_payment",
+                list(ap_entries),
+                list(payments),
+                date_window_days,
+                max_allocation_group_size,
+            ),
+        ]
+    )
+
+
+def reconcile_customer(
+    invoices: Iterable[FinancialRecord],
+    receipts: Iterable[FinancialRecord],
+    ar_entries: Iterable[FinancialRecord],
+    *,
+    date_window_days: int = DEFAULT_DATE_WINDOW_DAYS,
+    max_allocation_group_size: int = DEFAULT_MAX_ALLOCATION_GROUP_SIZE,
+) -> ReconciliationRun:
+    """Reconcile the customer chain invoice -> receipt -> AR."""
+    return reconcile_configured_graph(
+        [
+            ReconciliationStage(
+                "invoice_to_receipt",
+                list(invoices),
+                list(receipts),
+                date_window_days,
+                max_allocation_group_size,
+            ),
+            ReconciliationStage(
+                "receipt_to_ar",
+                list(receipts),
+                list(ar_entries),
+                date_window_days,
+                max_allocation_group_size,
+            ),
+        ]
+    )
+
+
 def allocate_one_to_many(
     source: FinancialRecord,
     targets: Iterable[FinancialRecord],
@@ -159,7 +287,7 @@ def allocate_one_to_many(
         for group in combinations(target_records, group_size):
             if not _same_currency(source, group):
                 continue
-            if sum((record.amount for record in group), Decimal("0")) != source.amount:
+            if sum((record.amount for record in group), Decimal(0)) != source.amount:
                 continue
             allocations = [
                 Allocation(
@@ -193,7 +321,7 @@ def allocate_many_to_one(
         for group in combinations(source_records, group_size):
             if not _same_currency(target, group):
                 continue
-            if sum((record.amount for record in group), Decimal("0")) != target.amount:
+            if sum((record.amount for record in group), Decimal(0)) != target.amount:
                 continue
             allocations = [
                 Allocation(
@@ -223,7 +351,11 @@ def audit_events_for_results(
     """Create audit events for persisted reconciliation decisions."""
     events: list[AuditEvent] = []
     for result in results:
-        entity_id = result.source_record_ids[0] if result.source_record_ids else result.target_record_ids[0]
+        entity_id = (
+            result.source_record_ids[0]
+            if result.source_record_ids
+            else result.target_record_ids[0]
+        )
         events.append(
             AuditEvent(
                 event_type="RECONCILIATION_DECISION",
@@ -258,7 +390,11 @@ def _matched(
 
 
 def _same_external_id(source: FinancialRecord, target: FinancialRecord) -> bool:
-    return bool(source.external_id and target.external_id and source.external_id == target.external_id)
+    return bool(
+        source.external_id
+        and target.external_id
+        and source.external_id == target.external_id
+    )
 
 
 def _same_reference(source: FinancialRecord, target: FinancialRecord) -> bool:

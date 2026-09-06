@@ -1,6 +1,5 @@
 from datetime import date, timedelta
 from decimal import Decimal
-from uuid import uuid4
 
 from packages.contracts import (
     BankTransaction,
@@ -10,10 +9,15 @@ from packages.contracts import (
     Settlement,
 )
 from services.reconciliation.deterministic import (
+    ReconciliationStage,
     allocate_many_to_one,
     allocate_one_to_many,
     match_pair,
+    reconcile_bank,
+    reconcile_configured_graph,
+    reconcile_customer,
     reconcile_records,
+    reconcile_vendor,
 )
 from services.reconciliation.deterministic.engine import audit_events_for_results
 
@@ -96,7 +100,10 @@ def test_one_to_many_allocation_conserves_decimal_amount():
     result = allocate_one_to_many(source, targets)
     assert result is not None
     assert result.status == ReconciliationStatus.MATCHED
-    assert sum((allocation.amount for allocation in result.allocations), Decimal("0")) == source.amount
+    assert (
+        sum((allocation.amount for allocation in result.allocations), Decimal(0))
+        == source.amount
+    )
     assert set(result.target_record_ids) == {target.id for target in targets}
 
 
@@ -105,7 +112,10 @@ def test_many_to_one_allocation_conserves_decimal_amount():
     target = ledger("100.00")
     result = allocate_many_to_one(sources, target)
     assert result is not None
-    assert sum((allocation.amount for allocation in result.allocations), Decimal("0")) == target.amount
+    assert (
+        sum((allocation.amount for allocation in result.allocations), Decimal(0))
+        == target.amount
+    )
     assert set(result.source_record_ids) == {source.id for source in sources}
 
 
@@ -128,3 +138,50 @@ def test_reconciliation_decisions_produce_audit_events():
     assert len(events) == 1
     assert events[0].event_type == "RECONCILIATION_DECISION"
     assert events[0].details["status"] == "MATCHED"
+
+
+def test_bank_workflow_reports_outstanding_items_and_audits_each_decision():
+    results = reconcile_bank([bank("100.00")], [ledger("100.00"), ledger("12.00")])
+
+    assert set(results.results) == {"bank_to_ledger"}
+    assert any(
+        result.status == ReconciliationStatus.UNMATCHED
+        and result.target_record_ids == [results.results["bank_to_ledger"][1].target_record_ids[0]]
+        for result in results.results["bank_to_ledger"]
+    )
+    assert len(results.audit_events) == len(results.all_results)
+
+
+def test_vendor_and_customer_workflows_expose_named_stages():
+    vendor_record = ledger("100.00", external_id="vendor-1")
+    vendor_run = reconcile_vendor(
+        [vendor_record],
+        [vendor_record],
+        [vendor_record],
+        [vendor_record],
+    )
+    customer_record = bank("100.00", reference="customer-1")
+    customer_run = reconcile_customer(
+        [customer_record],
+        [customer_record],
+        [customer_record],
+    )
+
+    assert set(vendor_run.results) == {
+        "purchase_order_to_invoice",
+        "invoice_to_ap",
+        "ap_to_payment",
+    }
+    assert set(customer_run.results) == {"invoice_to_receipt", "receipt_to_ar"}
+    assert all(run.audit_events for run in (vendor_run, customer_run))
+
+
+def test_configured_graph_rejects_duplicate_stage_names():
+    stage = ReconciliationStage("bank_to_ledger", [bank("10.00")], [ledger("10.00")])
+
+    try:
+        reconcile_configured_graph([stage, stage])
+    except ValueError as exc:
+        assert str(exc) == "Duplicate reconciliation stage: bank_to_ledger"
+    else:
+        raise AssertionError("duplicate stage names must be rejected")
