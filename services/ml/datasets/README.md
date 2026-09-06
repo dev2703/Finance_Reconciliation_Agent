@@ -16,3 +16,16 @@ duplicate identifiers, missing evidence, conflicting/duplicate cases, malformed
 numbers, non-finite values, unexpected columns/fields, and ReconRiver checksum or
 scenario mismatches fail with `DatasetFormatError`. Adapters perform local file I/O
 only; downloading or generating the source datasets is outside this contract.
+
+### Pair training conversion
+
+`training_examples_from_cases()` accepts **custom** cases whose `ground_truth`
+includes:
+
+- `is_match` (bool)
+- `source_ids` / `target_ids` (non-empty unique string lists)
+- optional `is_hard_negative` (bool)
+- optional `graph_score` (decimal string in `[0, 1]`)
+
+Each referenced record must include `id`, `record_type`, `amount`, `currency`, and
+ISO `record_date`, plus optional `reference`, `party`, and `description`.

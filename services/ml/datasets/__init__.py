@@ -12,6 +12,7 @@ labels are training metadata, not accounting records.
 
 from .adapters import load_custom_benchmark, load_finrca, load_reconriver
 from .contracts import DatasetCase, DatasetFormatError, DatasetGrouping, SourceRow
+from .examples import training_examples_from_cases
 
 __all__ = [
     "DatasetCase",
@@ -21,4 +22,5 @@ __all__ = [
     "load_custom_benchmark",
     "load_finrca",
     "load_reconriver",
+    "training_examples_from_cases",
 ]

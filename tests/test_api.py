@@ -27,6 +27,20 @@ def test_app_factory_builds_the_configured_api() -> None:
     assert {route.path for route in configured_app.routes} >= {
         "/health",
         "/contracts/sample",
+        "/dashboard/metrics",
+    }
+
+
+def test_dashboard_metrics_are_available_before_reconciliation(tmp_path) -> None:
+    client = TestClient(create_app(str(tmp_path / "dashboard.sqlite3")))
+    assert client.get("/dashboard/metrics").json() == {
+        "transactions_processed": 0,
+        "reconciled_count": 0,
+        "reconciliation_rate": 0,
+        "exception_count": 0,
+        "amount_at_risk": "0.00",
+        "pending_reviews": 0,
+        "automation_rate": 0,
     }
 
 

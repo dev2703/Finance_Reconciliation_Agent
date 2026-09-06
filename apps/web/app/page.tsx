@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ChangeEvent, DragEvent, FormEvent, useEffect, useState } from "react";
 
 type ParseError = {
@@ -167,6 +168,9 @@ export default function Home() {
 
   return (
     <main style={{ maxWidth: 960, margin: "0 auto", padding: "48px 24px" }}>
+      <nav aria-label="Primary navigation" style={{ display: "flex", justifyContent: "flex-end", marginBottom: 24 }}>
+        <Link href="/dashboard">Dashboard</Link>
+      </nav>
       <h1>Finance Reconciliation</h1>
       <p>Upload a source file, review normalized records, and confirm the import.</p>
       <form onSubmit={upload} style={{ display: "grid", gap: 16, maxWidth: 520 }}>

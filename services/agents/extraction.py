@@ -22,7 +22,7 @@ class StructuredExtractionResult(ContractModel):
     """Strict, auditable output from the extraction fallback boundary."""
 
     structured_data: dict[str, Any] = Field(default_factory=dict)
-    confidence: Decimal = Field(default=Decimal("0"), ge=0, le=1)
+    confidence: Decimal = Field(default=Decimal(0), ge=0, le=1)
     unresolved_fields: list[str] = Field(default_factory=list)
 
 
@@ -30,7 +30,7 @@ def validate_structured_data(
     request: StructuredExtractionRequest,
     structured_data: dict[str, Any],
     *,
-    confidence: Decimal = Decimal("1"),
+    confidence: Decimal = Decimal(1),
 ) -> StructuredExtractionResult:
     """Validate supplied extraction output without calling an LLM or a database.
 
@@ -55,7 +55,7 @@ def extract_structured_data(
     request: StructuredExtractionRequest,
     structured_data: dict[str, Any],
     *,
-    confidence: Decimal = Decimal("1"),
+    confidence: Decimal = Decimal(1),
 ) -> StructuredExtractionResult:
     """Public bounded extraction tool contract.
 

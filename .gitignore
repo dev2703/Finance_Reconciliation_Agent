@@ -7,5 +7,5 @@ node_modules/
 .env
 .data/
 *.tsbuildinfo
-.env.example
+!.env.example
 .vscode

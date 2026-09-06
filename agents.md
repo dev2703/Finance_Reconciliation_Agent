@@ -21,20 +21,20 @@ This is the single current phase-status overview, based on the local review on *
 | 3 | [Deterministic reconciliation engine](#phase-3--deterministic-reconciliation-engine) | `IN_PROGRESS` | Pairing/conservation regressions fixed; full allocation coverage and API integration remain incomplete. |
 | 4 | [Graph reconciliation engine](#phase-4--graph-reconciliation-engine) | `IN_PROGRESS` | Directed conserved lineage fixed; full split/fee allocation solver and benchmarks remain incomplete. |
 | 5 | [ML matcher](#phase-5--ml-matcher) | `IN_PROGRESS` | Scoped synthetic review gate passes; broader adapters, calibration generalization, and product integration remain. |
-| 6 | [Evaluation harness](#phase-6--evaluation-harness) | `IN_PROGRESS` | Phase 5 candidate evaluation implemented; broader reconciliation/RCA/FinBalance coverage remains absent. |
-| 7 | [Runtime application agents + tools](#phase-7--runtime-application-agents--tools) | `IN_PROGRESS` | Extraction request/result contracts exist; bounded investigation and the runtime tool layer are absent. |
-| 8 | [TensorMux + GLM integration](#phase-8--tensormux--glm-integration) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
-| 9 | [Policy, approval, accounting execution](#phase-9--policy-approval-accounting-execution) | `IN_PROGRESS` | Ingestion audit events exist; policy, approval, and accounting execution controls are absent. |
-| 10 | [FastAPI application](#phase-10--fastapi-application) | `IN_PROGRESS` | Ingestion API and worker exist; reconciliation, investigation, approval, and reporting routes are absent. |
-| 11 | [Frontend foundation](#phase-11--frontend-foundation) | `IN_PROGRESS` | Upload page exists; dashboard and broader UI foundation are not established. |
+| 6 | [Evaluation harness](#phase-6--evaluation-harness) | `IN_PROGRESS` | Deterministic metrics, ReconRiver/FinRCA runners, FinBalance loading, and one-command custom reports exist; external-pack acceptance remains. |
+| 7 | [Runtime application agents + tools](#phase-7--runtime-application-agents--tools) | `IN_PROGRESS` | Bounded runtime contracts, a read-only evidence-tool foundation, and budget enforcement exist; persisted tools and controller routing remain. |
+| 8 | [TensorMux + GLM integration](#phase-8--tensormux--glm-integration) | `IN_PROGRESS` | OpenAI-compatible client, strict outputs, evidence prompts, retries, and telemetry are implemented; live TensorMux/GLM reachability remains deployment acceptance. |
+| 9 | [Policy, approval, accounting execution](#phase-9--policy-approval-accounting-execution) | `IN_PROGRESS` | Deterministic policy, journal validation, audited human-review controls exist; API persistence and accounting execution remain absent. |
+| 10 | [FastAPI application](#phase-10--fastapi-application) | `IN_PROGRESS` | Ingestion API, worker, and ingestion-backed dashboard metrics exist; reconciliation, investigation, approval, and reporting routes remain. |
+| 11 | [Frontend foundation](#phase-11--frontend-foundation) | `IN_PROGRESS` | Upload and dashboard views with the finance visual foundation exist; broader UI foundation remains. |
 | 12 | [Reconciliation + exception UI](#phase-12--reconciliation--exception-ui) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
-| 13 | [Reporting + observability](#phase-13--reporting--observability) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
-| 14 | [Plaid sandbox connector](#phase-14--plaid-sandbox-connector) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
-| 15 | [Stripe sandbox connector](#phase-15--stripe-sandbox-connector) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
+| 13 | [Reporting + observability](#phase-13--reporting--observability) | `IN_PROGRESS` | Deterministic operational reports and append-only local run traces exist; persistence, UI, and Neatlogs export remain. |
+| 14 | [Plaid sandbox connector](#phase-14--plaid-sandbox-connector) | `IN_PROGRESS` | Sandbox client, custom transaction simulation, webhook trigger, and bank-record normalization are implemented and mock-tested; live Sandbox acceptance remains. |
+| 15 | [Stripe sandbox connector](#phase-15--stripe-sandbox-connector) | `IN_PROGRESS` | Sandbox PaymentIntent/event/balance-transaction client and payment/settlement normalization are implemented and mock-tested; live Sandbox acceptance remains. |
 | 16 | [Reliability / performance hardening](#phase-16--reliability--performance-hardening) | `IN_PROGRESS` | Ingestion retries and upload deduplication exist; restart recovery and performance acceptance remain incomplete. |
 | 17 | [Agent quality optimization](#phase-17--agent-quality-optimization) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
 | 18 | [End-to-end integration](#phase-18--end-to-end-integration) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
-| 19 | [Demo dataset construction](#phase-19--demo-dataset-construction) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
+| 19 | [Demo dataset construction](#phase-19--demo-dataset-construction) | `IN_PROGRESS` | A deterministic 40-case pack covers all recommended categories with expected outcomes; end-to-end system predictions remain integration work. |
 | 20 | [Demo orchestration](#phase-20--demo-orchestration) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
 
 ### How to interpret the imported checklists
@@ -528,7 +528,8 @@ Hold out generator seeds/entities/scenarios to prevent leakage.
 
 Use clean-settlement, mixed-exceptions, month-end-close, and failure-recovery scenarios. [^sources]
 
-**Imported status (unverified):** [ ]
+**Status: Implemented locally; external acceptance pending.** The runner discovers the four named
+scenario directories, validates inputs, and scores prediction output.
 
 ### 6.2 FinRCA runner — Agent G
 
@@ -539,13 +540,15 @@ Use clean-settlement, mixed-exceptions, month-end-close, and failure-recovery sc
 - evidence
 - resolution.
 
-**Imported status (unverified):** [ ]
+**Status: Implemented locally; external acceptance pending.** Detection, root cause, evidence,
+resolution, hard-negative exposure, latency, token, and cost scoring are supported.
 
 ### 6.3 FinBalance ingestion benchmark — Agent G
 
 Use document/table/accounting artifacts to score parser and accounting-document handling. FinBalance provides document metadata/OCR/rendered assets, expected journal entries and contradiction labels. [^sources]
 
-**Imported status (unverified):** [ ]
+**Status: Loader implemented locally; external acceptance pending.** Document text, expected
+journals, contradiction labels, fields, Decimal amounts, and provenance are validated.
 
 ### 6.4 Metric engine — Agent G
 
@@ -565,14 +568,15 @@ Use document/table/accounting artifacts to score parser and accounting-document 
 - LLM tokens
 - estimated cost
 
-**Imported status (unverified):** [ ]
+**Status: Implemented and tested locally.** Precision, recall, F1, RCA/evidence/resolution,
+hard-negative, automation, exposure, latency, token, and estimated-cost metrics are available.
 
 ### Phase 6 exit gate
 
-- [ ] one command runs benchmark
-- [ ] JSON result generated
-- [ ] markdown report generated
-- [ ] baseline vs system comparison available
+- [x] one command runs custom benchmark
+- [x] JSON result generated
+- [x] markdown report generated
+- [x] baseline vs system comparison available
 
 ## Phase 7 — Runtime application agents + tools
 
@@ -585,7 +589,8 @@ Use document/table/accounting artifacts to score parser and accounting-document 
 - SummaryAgent
 - ReviewExplanationAgent
 
-**Imported status (unverified):** [ ]
+**Status: Implemented and tested locally.** Bounded request/result contracts are available for all
+four agent kinds; controller routing is not yet integrated.
 
 ### 7.2 Tool layer — Agent H
 
@@ -603,7 +608,9 @@ Use document/table/accounting artifacts to score parser and accounting-document 
 - get_accounting_policy
 - get_historical_matches
 
-**Imported status (unverified):** [ ]
+**Status: Partially implemented and tested locally.** A capped, read-only canonical-record/document
+read model provides search, related-record, document-page, and typed record retrieval; policy and
+historical-match tools plus persistence-backed retrieval remain pending.
 
 ### 7.3 Deterministic tools — Agent H
 
@@ -611,7 +618,7 @@ Use document/table/accounting artifacts to score parser and accounting-document 
 - validate_conservation
 - validate_journal
 
-**Imported status (unverified):** [ ]
+**Status: Implemented and tested.** Exact-Decimal variance, conservation, and journal checks exist.
 
 ### 7.4 Investigation state machine — Agent H
 
@@ -623,7 +630,8 @@ Use document/table/accounting artifacts to score parser and accounting-document 
 - duplicate-call prevention
 - early stop.
 
-**Imported status (unverified):** [ ]
+**Status: Implemented and tested locally.** Turn, tool-call, context-byte, and duplicate-call
+limits are enforced by `InvestigationBudget`; workflow orchestration remains pending.
 
 ## Phase 8 — TensorMux + GLM integration
 
@@ -631,7 +639,8 @@ Use document/table/accounting artifacts to score parser and accounting-document 
 
 Configure OpenAI-compatible endpoint. TensorMux documents a single gateway endpoint and backend routing configuration. [^sources]
 
-**Imported status (unverified):** [ ]
+**Status: Implemented and tested locally.** The configurable client uses the OpenAI-compatible
+`/chat/completions` boundary. Live gateway reachability requires deployment credentials.
 
 ### 8.2 GLM-4-7B-Flash MoE 30B client — Agent H
 
@@ -643,7 +652,8 @@ Configure OpenAI-compatible endpoint. TensorMux documents a single gateway endpo
 - retries
 - token telemetry.
 
-**Imported status (unverified):** [ ]
+**Status: Implemented and tested locally.** Model route, strict Pydantic/JSON Schema outputs,
+timeouts, bounded transient retries, token telemetry, and cost estimation are supported.
 
 ### 8.3 Prompt/evidence packaging — Agent H
 
@@ -661,14 +671,15 @@ Configure OpenAI-compatible endpoint. TensorMux documents a single gateway endpo
 - return structured output
 - confidence + unresolved questions.
 
-**Imported status (unverified):** [ ]
+**Status: Implemented and tested.** Separate evidence-only packages exist for extraction,
+investigation, summary, and review explanation.
 
 ### Phase 8 exit gate
 
 - [ ] LLM reachable through TensorMux
-- [ ] structured output validated
+- [x] structured output validated
 - [ ] investigation limited to unresolved cases
-- [ ] token count logged
+- [x] token count logged
 
 ## Phase 9 — Policy, approval, accounting execution
 
@@ -676,7 +687,7 @@ Configure OpenAI-compatible endpoint. TensorMux documents a single gateway endpo
 
 Implement configurable approval matrix.
 
-**Imported status (unverified):** [ ]
+**Status: Implemented and tested locally.** A configurable first-match policy has safe human-review defaults and supports AUTO_APPROVE, HUMAN_REVIEW, REJECT, and ESCALATE outcomes.
 
 ### 9.2 Accounting validator — Agent I
 
@@ -689,7 +700,7 @@ Implement configurable approval matrix.
 - duplication
 - source record state.
 
-**Imported status (unverified):** [ ]
+**Status: Implemented and tested locally.** Decimal journal balancing, currency, closed period, duplicate, source validity, reconciliation state, and LLM-journal rejection are deterministic pre-posting checks.
 
 ### 9.3 Approval workflow — Agent I
 
@@ -700,7 +711,7 @@ Implement configurable approval matrix.
 - REJECT
 - ESCALATE
 
-**Imported status (unverified):** [ ]
+**Status: Implemented and tested locally.** In-memory review queue enforces a single human decision and audits queueing and decisions; persistence/API integration remains pending.
 
 ### 9.4 Audit log — Agent I
 
@@ -717,14 +728,14 @@ Implement configurable approval matrix.
 - human decision
 - timestamp
 
-**Imported status (unverified):** [ ]
+**Status: Implemented for Phase 9 workflow mutations.** Audit events include the actor, decision/reason, entity, timestamp, and policy decision details. Full database persistence is an API integration dependency.
 
 ### Phase 9 exit gate
 
-- [ ] exact matches can auto-approve
-- [ ] high-risk cases require human review
-- [ ] LLM cannot directly write accounting state
-- [ ] every mutation is auditable
+- [x] exact matches can auto-approve
+- [x] high-risk cases require human review
+- [x] LLM-generated journals rejected before posting
+- [x] Phase 9 workflow mutations are auditable
 
 ## Phase 10 — FastAPI application
 
@@ -740,7 +751,9 @@ Implement configurable approval matrix.
 - reports
 - audit
 
-**Imported status (unverified):** [ ]
+**Status: Partially implemented and tested locally.** Upload endpoints and an ingestion-backed
+`GET /dashboard/metrics` endpoint are wired; reconciliation, investigation, approval, report, and
+audit routes remain pending.
 
 ### 10.2 Async jobs — Agent J
 
@@ -767,7 +780,8 @@ Generate typed frontend client.
 - Maximor-inspired feel
 - graph visualizations used selectively.
 
-**Imported status (unverified):** [ ]
+**Status: Implemented and tested locally.** The upload and dashboard views share a restrained,
+responsive finance-oriented visual system with clear status states.
 
 ### 11.2 Dashboard — Agent K
 
@@ -780,13 +794,14 @@ Generate typed frontend client.
 - pending reviews
 - automation rate
 
-**Imported status (unverified):** [ ]
+**Status: Implemented and tested locally.** `/dashboard` renders the required KPI cards with a
+safe empty state until the API metrics endpoint is available.
 
 ### 11.3 Documents UI — Agent K
 
 Implement upload library and processing state.
 
-**Imported status (unverified):** [ ]
+**Status: Existing upload UI retained.** Dashboard navigation links to the document upload view.
 
 ## Phase 12 — Reconciliation + exception UI
 
@@ -852,7 +867,8 @@ Implement upload library and processing state.
 - audit report
 - automation report.
 
-**Imported status (unverified):** [ ]
+**Status: Implemented as deterministic payloads.** Reconciliation, exception, audit, and automation
+reports are assembled from supplied records and computed metrics; report API/UI remain pending.
 
 ### 13.2 Agent trace UI — Agent M
 
@@ -865,19 +881,21 @@ Implement upload library and processing state.
 - → evidence
 - → decision
 
-**Imported status (unverified):** [ ]
+**Status: Local trace contract implemented and tested.** Stable run IDs correlate model, tool,
+evidence, decision, guardrail, completion, and failure events; trace UI remains pending.
 
 ### 13.3 Neatlogs integration — Agent M
 
 Wire traces around agent calls/tools/guardrails and preserve local run IDs for correlation.
 
-**Imported status (unverified):** [ ]
+**Status: Local trace seam implemented.** External Neatlogs export is not configured; local run
+events are always retained by the in-process append-only trace pending database persistence.
 
 ### Phase 13 exit gate
 
 - [ ] report pages render
-- [ ] agent run is traceable
-- [ ] tokens/latency available
+- [x] agent run is traceable locally
+- [x] tokens/latency available in trace summaries
 - [ ] audit log visible
 
 ## Phase 14 — Plaid sandbox connector
@@ -895,7 +913,9 @@ Plaid Sandbox supports test Items, custom transaction creation, transaction sync
 
 Do not make Plaid required for the core demo.
 
-**Imported status (unverified):** [ ]
+**Status: IN_PROGRESS.** A configurable Sandbox client creates test Item tokens, exchanges
+tokens, fetches transaction-sync pages, creates custom Sandbox transactions, triggers webhooks,
+and normalizes provider payloads to `BankTransaction`. Live Sandbox credentials are still needed.
 
 ## Phase 15 — Stripe sandbox connector
 
@@ -912,7 +932,9 @@ Stripe Sandboxes provide an isolated environment where payments can be tested wi
 
 Do not make Stripe required for the benchmark.
 
-**Imported status (unverified):** [ ]
+**Status: IN_PROGRESS.** A configurable Sandbox client creates test PaymentIntents and fetches
+payments, events, and balance transactions. PaymentIntents normalize to `Payment`; balance
+transactions normalize to `Settlement`. Live Sandbox credentials are still needed.
 
 ## Phase 16 — Reliability / performance hardening
 
@@ -1054,7 +1076,9 @@ report
 
 Every case must have expected outcome and ground truth.
 
-**Imported status (unverified):** [ ]
+**Current status: Implemented and tested locally.** `seed_demo_data()` produces 40 deterministic
+cases spanning every recommended category, with expected outcomes and ground truth. Current system
+accuracy must be supplied by the integrated reconciliation workflow rather than acceptance fixtures.
 
 ## Phase 20 — Demo orchestration
 
@@ -1167,6 +1191,85 @@ AO workers should be assigned leaf features with clear acceptance tests, not vag
 - **Benchmark result:** Financial normalization smoke tests pass; table detection infrastructure verified
 - **Known limitations:** Scanned-page OCR requires Tesseract installation on host; table-to-record conversion (phase 2.5) delegated to extraction agent; bounded LLM extraction tool implemented as placeholder.
 - **Next dependency:** Phase 2.5 extraction-fallback agent contract; Phase 3 deterministic reconciliation rules.
+
+### Phase 8 implementation entry — 2026-09-06
+
+- **Owner:** Agent H
+- **Branch/PR:** Local Phase 8 implementation; PR not opened
+- **Status:** [~] IN_PROGRESS
+- **Files:** `services/agents/tensormux.py`, `services/agents/prompts.py`, `.env.example`, `docs/phase8-tensormux.md`, `tests/test_tensormux.py`
+- **Tests:** 112 pytest tests pass; Phase 8 agent paths and tests pass Ruff
+- **Benchmark result:** Not applicable; mocked transient retry and strict-output protocol tests pass
+- **Known limitations:** No deployed TensorMux/GLM endpoint or credentials were available for live reachability acceptance; Phase 7 unresolved-case routing is not implemented
+- **Next dependency:** Configure the deployed TensorMux route, run the documented live structured-output check, and integrate the client with the Phase 7 workflow
+
+### Phase 7 implementation entry — 2026-09-06
+
+- **Owner:** Agent H
+- **Branch/PR:** Local Phase 7 foundation; PR not opened
+- **Status:** [~] IN_PROGRESS
+- **Files:** `services/agents/runtime.py`, `services/agents/tools.py`, `docs/phase7-runtime-agents.md`, `tests/test_agent_runtime.py`
+- **Tests:** Runtime-agent tests pass; agent paths pass Ruff
+- **Benchmark result:** Not applicable
+- **Known limitations:** Read tools use an injected in-memory read model; controller routing, persisted tool adapters, and audit integration remain unfinished
+- **Next dependency:** Wire repositories and unresolved-case routing through the reconciliation workflow
+
+### Phase 11 dashboard implementation entry — 2026-09-06
+
+- **Owner:** Agent K
+- **Branch/PR:** Local Phase 11 dashboard foundation; PR not opened
+- **Status:** [~] IN_PROGRESS
+- **Files:** `apps/web/app/dashboard/`, `apps/web/app/globals.css`, `apps/web/app/layout.tsx`, `apps/web/app/page.tsx`
+- **Tests:** `npm run typecheck` and `npm run build` pass
+- **Benchmark result:** Not applicable
+- **Known limitations:** Reconciliation, exception, review, and automation metrics are zero until
+  their workflow state is persisted
+- **Next dependency:** Add persisted reconciliation and review metrics to the API
+
+### Phase 9 controls implementation entry — 2026-09-06
+
+- **Owner:** Agent I
+- **Branch/PR:** Local Phase 9 controls implementation; PR not opened
+- **Status:** [~] IN_PROGRESS
+- **Files:** `services/policy/`, `services/review/`, `services/audit/`, `tests/test_policy_controls.py`
+- **Tests:** 4 focused pytest tests pass
+- **Benchmark result:** Not applicable
+- **Known limitations:** Controls are in-memory modules; no API, database persistence, accounting posting adapter, or end-to-end reconciliation integration yet exists.
+- **Next dependency:** Phase 10 routes/persistence and an accounting execution adapter must invoke policy and validation before any write.
+
+### Phase 14–15 connector implementation entry — 2026-09-06
+
+- **Owner:** Agent N
+- **Branch/PR:** Local connector implementation; PR not opened
+- **Status:** [~] IN_PROGRESS
+- **Files:** `connectors/plaid/`, `connectors/stripe/`, `.env.example`, `tests/test_sandbox_connectors.py`
+- **Tests:** Four mocked HTTP and normalization tests pass; connector paths pass Ruff
+- **Benchmark result:** Not applicable; sandboxes are integration environments, not benchmark data
+- **Known limitations:** No live Plaid or Stripe Sandbox credentials were supplied. Stripe's actual
+  asynchronous event delivery is fetched rather than fabricated by the connector.
+- **Next dependency:** Provide restricted Sandbox keys and run live create/fetch/normalize acceptance checks.
+
+### Phase 6 + Phase 19 evaluation implementation entry — 2026-09-06
+
+- **Owner:** Agent G
+- **Branch/PR:** Local evaluation and demo-pack implementation; PR not opened
+- **Status:** [~] IN_PROGRESS
+- **Files:** `evaluation/`, `docs/phase6-phase19-evaluation.md`, `tests/test_demo_evaluation.py`
+- **Tests:** Demo distribution, reproducibility, loaders, comparison, and JSON/Markdown output pass
+- **Benchmark result:** Acceptance fixture candidate scores precision/recall/F1 1.0 with zero false-positive and false-negative exposure across 40 cases; this is not current E2E accuracy
+- **Known limitations:** ReconRiver, FinRCA, and FinBalance require external packs for acceptance; real workflow prediction export is not wired
+- **Next dependency:** Emit prediction JSONL from the Phase 18 reconciliation workflow and run the same comparison against actual outputs
+
+### Phase 13 reporting/observability foundation entry — 2026-09-06
+
+- **Owner:** Agent M
+- **Branch/PR:** Local reporting/trace foundation; PR not opened
+- **Status:** [~] IN_PROGRESS
+- **Files:** `services/reporting/`, `observability/`, `tests/test_reporting_observability.py`
+- **Tests:** Deterministic report and append-only correlated trace tests pass
+- **Benchmark result:** Not applicable
+- **Known limitations:** No report/trace API, database persistence, frontend views, or Neatlogs exporter exists yet
+- **Next dependency:** Persist trace/report projections and expose them through Phase 10 and Phase 13 UI routes
 
 ## Final acceptance checklist
 

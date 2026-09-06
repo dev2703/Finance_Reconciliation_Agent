@@ -385,6 +385,28 @@ class DocumentStore:
             for row in rows
         ]
 
+    def dashboard_metrics(self) -> dict[str, int | str]:
+        """Return ingestion-backed metrics available before reconciliation persistence exists."""
+        self._ensure_initialized()
+        with self.engine.connect() as connection:
+            row = connection.execute(
+                text(
+                    "SELECT COALESCE(SUM(json_array_length(records_json)), 0) AS processed "
+                    "FROM ingestion_documents WHERE status IN ('PARSED', 'CONFIRMED')"
+                )
+            ).mappings().one()
+        # SQLite's JSON aggregate is used by the local MVP. PostgreSQL dashboard
+        # metrics will be sourced from reconciliation runs when those are persisted.
+        return {
+            "transactions_processed": int(row["processed"]),
+            "reconciled_count": 0,
+            "reconciliation_rate": 0,
+            "exception_count": 0,
+            "amount_at_risk": "0.00",
+            "pending_reviews": 0,
+            "automation_rate": 0,
+        }
+
     @staticmethod
     def _deserialize(row: Any) -> dict[str, Any]:
         return {

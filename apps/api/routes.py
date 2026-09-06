@@ -37,6 +37,10 @@ def create_router(store: DocumentStore) -> APIRouter:
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    @router.get("/dashboard/metrics")
+    def dashboard_metrics() -> dict[str, int | str]:
+        return store.dashboard_metrics()
+
     @router.get("/contracts/sample", response_model=Invoice)
     def sample_invoice() -> Invoice:
         return Invoice(
@@ -206,5 +210,4 @@ def _response(
     if duplicate:
         response["duplicate"] = True
     return response
-
 
