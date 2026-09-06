@@ -714,7 +714,7 @@ class DocumentStore:
                         text(
                             """
                         SELECT COALESCE(
-                            SUM(jsonb_array_length(records_json)), 0
+                            SUM(jsonb_array_length(records_json::jsonb)), 0
                         ) AS processed
                         FROM ingestion_documents
                         WHERE status IN ('PARSED', 'CONFIRMED')
