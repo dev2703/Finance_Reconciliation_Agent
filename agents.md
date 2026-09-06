@@ -542,6 +542,16 @@ metrics
 
 Status: [ ]
 
+5.7 Review-only workflow integration — Agent F
+
+Generate the complete graph-blocked pairwise candidate batch, rank the batch once,
+and create human-review proposals only. Partial payments, allocation groups,
+insufficient/ambiguous candidate sets, unvalidated relationships, and uncalibrated
+models must remain unresolved. Human decisions change proposal review state only and
+emit an audit event; they do not mutate accounting state.
+
+Status: [x] COMPLETE
+
 Phase 5 exit gate
 
 [ ] held-out test passes
@@ -1290,7 +1300,15 @@ Next dependency: Phase 5 ML matcher for ranking ambiguous paths; Phase 6 evaluat
 
 Phase 5
 
-Status: [ ]
+Owner: Agent F
+Branch/PR: `ao/finance_reconciliation_agent-2/root` / pending PR
+Status: [~] IN_PROGRESS
+Files: `services/ml/`, `tests/test_ml_review_workflow.py`
+Tests: 7 focused Phase 5 workflow tests; full Python suite 75 tests; scoped Ruff passes; existing synthetic Phase 5 gate 22 tests passes
+Benchmark result: Existing synthetic review gate passes, but remains separate from this integration slice; no new model-quality claim
+Known limitations: Pairwise review suggestions only. Partial payments, one-to-many/many-to-one allocations, insufficient or ambiguous competition, unvalidated relationships, and uncalibrated artifacts abstain as unresolved. Approval records review state only and cannot write accounting state. Training, grouped splits, calibration, and a committed production artifact remain pending.
+Contract changes: Added service-local `Candidate`, `ObservableRecord`, `ReviewProposal`, `ReviewOutcome`, and `ReviewDecision` contracts. No shared canonical schema or API endpoint changed.
+Next dependency: Land the Phase 5 training/evaluation prototype and validated artifact, then wire persisted review storage/API under the Phase 9/10 owners.
 
 Phase 6
 
