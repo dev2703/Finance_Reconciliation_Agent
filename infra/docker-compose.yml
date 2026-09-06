@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: finance-pg
+    environment:
+      POSTGRES_USER: finance_app
+      POSTGRES_PASSWORD: finance_app_dev
+      POSTGRES_DB: finance_reconciliation
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finance_app -d finance_reconciliation"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - finance_pg_data:/var/lib/postgresql/data
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://finance_app:finance_app_dev@postgres:5432/finance_reconciliation
+      OBJECT_STORAGE_PATH: /data/objects
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      TENSORMUX_BASE_URL: ${TENSORMUX_BASE_URL:-http://host.docker.internal:8080/v1}
+      TENSORMUX_API_KEY: ${TENSORMUX_API_KEY:-replace-me}
+      TENSORMUX_MODEL: ${TENSORMUX_MODEL:-glm-4-7b-flash}
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - finance_objects:/data/objects
+    restart: unless-stopped
+  worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command: ["python", "-m", "services.ingestion.worker"]
+    environment:
+      DATABASE_URL: postgresql://finance_app:finance_app_dev@postgres:5432/finance_reconciliation
+      OBJECT_STORAGE_PATH: /data/objects
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - finance_objects:/data/objects
+    restart: unless-stopped
+
+volumes:
+  finance_pg_data:
+  finance_objects:

@@ -15,6 +15,8 @@ from pydantic import Field
 
 from packages.contracts import AuditEvent, Document, FinancialRecord, IngestionStatus, Invoice
 from packages.contracts.models import ContractModel
+from services.agents.controller import investigate_unresolved_case
+from services.agents.tensormux import TensorMuxError
 from services.ml.contracts import Candidate
 from services.ml.model import rank_candidates
 from services.reconciliation.deterministic import reconcile_records
@@ -36,6 +38,12 @@ class MLReviewRequest(ContractModel):
     """A complete candidate batch for conflict-aware, review-only ranking."""
 
     candidates: list[Candidate] = Field(min_length=1, max_length=1_000)
+
+
+class ReviewDecisionRequest(ContractModel):
+    decision: str = Field(pattern="^(AUTO_APPROVE|REJECT|ESCALATE)$")
+    actor: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
 
 
 def create_router(store: DocumentStore, ml_model_directory: Path | None = None) -> APIRouter:
@@ -86,9 +94,228 @@ def create_router(store: DocumentStore, ml_model_directory: Path | None = None) 
             "audit_events": [event.model_dump(mode="json") for event in events],
         }
 
-    @router.post("/reconciliation/ml-review")
+    @router.post("/reconciliation/runs")
+    def create_reconciliation_run(request: ReconciliationRequest) -> dict[str, object]:
+        results = reconcile_records(
+            request.sources,
+            request.targets,
+            date_window_days=request.date_window_days,
+            max_allocation_group_size=request.max_allocation_group_size,
+        )
+        serialized = [result.model_dump(mode="json") for result in results]
+        exceptions = [
+            result for result in serialized if result["status"] in {"EXCEPTION", "UNMATCHED"}
+        ]
+        run = store.create_reconciliation_run(results=serialized, exceptions=exceptions)
+        store.add_audit(
+            AuditEvent(
+                event_type="RECONCILIATION_RUN_COMPLETED",
+                actor="reconciliation_api",
+                entity_type="ReconciliationRun",
+                entity_id=UUID(run["id"]),
+                occurred_at=datetime.now(UTC),
+                details={"result_count": len(serialized), "exception_count": len(exceptions)},
+            )
+        )
+        return run
+
+    @router.get("/reconciliation/runs")
+    def list_reconciliation_runs() -> dict[str, object]:
+        return {"runs": store.list_reconciliation_runs()}
+
+    @router.get("/reconciliation/runs/{run_id}")
+    def get_reconciliation_run(run_id: UUID) -> dict[str, object]:
+        run = store.get_reconciliation_run(str(run_id))
+        if run is None:
+            raise HTTPException(status_code=404, detail="Reconciliation run not found")
+        return run
+
+    @router.get("/reconciliation/runs/{run_id}/exceptions")
+    def list_run_exceptions(run_id: UUID) -> dict[str, object]:
+        run = store.get_reconciliation_run(str(run_id))
+        if run is None:
+            raise HTTPException(status_code=404, detail="Reconciliation run not found")
+        return {"run_id": str(run_id), "exceptions": run["exceptions"]}
+
+    @router.post("/reconciliation/runs/{run_id}/investigate")
+    def investigate_run(run_id: UUID) -> dict[str, object]:
+        run = store.get_reconciliation_run(str(run_id))
+        if run is None:
+            raise HTTPException(status_code=404, detail="Reconciliation run not found")
+        if not run["exceptions"]:
+            raise HTTPException(status_code=409, detail="Run has no unresolved exceptions")
+        try:
+            result = investigate_unresolved_case(
+                case_id=str(run_id),
+                evidence=[{"match_result": item} for item in run["exceptions"][:30]],
+            )
+        except (TensorMuxError, ValueError) as exc:
+            raise HTTPException(
+                status_code=503, detail="TensorMux investigation is unavailable"
+            ) from exc
+        investigation = store.save_investigation(str(run_id), **result)
+        store.add_audit(
+            AuditEvent(
+                event_type="INVESTIGATION_COMPLETED",
+                actor="glm-4-7b-flash",
+                entity_type="ReconciliationRun",
+                entity_id=run_id,
+                occurred_at=datetime.now(UTC),
+                details={
+                    "investigation_id": investigation["id"],
+                    "model": result["telemetry"]["model"],
+                    "prompt_tokens": result["telemetry"]["prompt_tokens"],
+                    "completion_tokens": result["telemetry"]["completion_tokens"],
+                },
+            )
+        )
+        return investigation
+
+    @router.get("/reconciliation/runs/{run_id}/investigations")
+    def list_run_investigations(run_id: UUID) -> dict[str, object]:
+        if store.get_reconciliation_run(str(run_id)) is None:
+            raise HTTPException(status_code=404, detail="Reconciliation run not found")
+        return {
+            "run_id": str(run_id),
+            "investigations": store.list_investigations(str(run_id)),
+        }
+
+    @router.post("/reconciliation/runs/{run_id}/reviews")
+    def queue_review(run_id: UUID) -> dict[str, object]:
+        if store.get_reconciliation_run(str(run_id)) is None:
+            raise HTTPException(status_code=404, detail="Reconciliation run not found")
+        review = store.queue_review(str(run_id))
+        return review
+
+    @router.post("/reviews/{review_id}/decision")
+    def decide_review(review_id: UUID, request: ReviewDecisionRequest) -> dict[str, object]:
+        review = store.decide_review(
+            str(review_id),
+            decision=request.decision,
+            actor=request.actor,
+            reason=request.reason,
+        )
+        if review is None:
+            raise HTTPException(status_code=409, detail="Review is missing or already decided")
+        store.add_audit(
+            AuditEvent(
+                event_type="REVIEW_DECIDED",
+                actor=request.actor,
+                entity_type="Review",
+                entity_id=review_id,
+                occurred_at=datetime.now(UTC),
+                reason=request.reason,
+                details={"decision": request.decision, "run_id": review.get("run_id")},
+            )
+        )
+        return review
+
+    @router.get("/reviews/pending")
+    def pending_reviews() -> dict[str, object]:
+        return {"reviews": store.list_pending_reviews()}
+
+    @router.get("/reports/operational")
+    def operational_reports() -> dict[str, object]:
+        runs = store.list_reconciliation_runs()
+        items = []
+        events = store.list_audit_events(limit=500)
+        for summary in runs:
+            run = store.get_reconciliation_run(summary["id"])
+            if run is None:
+                continue
+            for result in run["results"]:
+                source_ids = result.get("source_record_ids") or []
+                items.append(
+                    {
+                        "id": source_ids[0] if source_ids else None,
+                        "status": result["status"],
+                        "confidence": result.get("confidence", "0"),
+                        "reason_codes": result.get("reason_codes", []),
+                    }
+                )
+        matched = sum(1 for item in items if item["status"] == "MATCHED")
+        exceptions = [item for item in items if item["status"] in {"EXCEPTION", "UNMATCHED"}]
+        total = len(items)
+        rate = format(Decimal(matched) / Decimal(total), "f") if total else "0"
+        automation = sum(
+            1 for event in events if event["event_type"] in {"AUTO_APPROVED", "AUTO_RECONCILED"}
+        )
+        automation_rate = format(Decimal(automation) / Decimal(total), "f") if total else "0"
+        return {
+            "reconciliation": {
+                "item_count": total,
+                "matched_count": matched,
+                "reconciliation_rate": rate,
+                "run_count": len(runs),
+            },
+            "exceptions": {
+                "exception_count": len(exceptions),
+                "item_ids": [str(item["id"]) for item in exceptions if item["id"]],
+            },
+            "audit": {
+                "event_count": len(events),
+                "event_types": [event["event_type"] for event in events],
+            },
+            "automation": {
+                "automated_count": automation,
+                "automation_rate": automation_rate,
+                "pending_reviews": len(store.list_pending_reviews()),
+            },
+        }
+
+    @router.get("/audit/events")
+    def audit_event_feed(limit: int = 100) -> dict[str, object]:
+        if limit < 1 or limit > 500:
+            raise HTTPException(status_code=422, detail="limit must be between 1 and 500")
+        return {"events": store.list_audit_events(limit=limit)}
+
+    @router.get("/agent-traces")
+    def agent_trace_feed(limit: int = 100) -> dict[str, object]:
+        if limit < 1 or limit > 500:
+            raise HTTPException(status_code=422, detail="limit must be between 1 and 500")
+        return {"traces": store.list_all_investigations(limit=limit)}
+
+    @router.post("/demo/seed-and-run")
+    def seed_and_run_demo() -> dict[str, object]:
+        """Seed the Phase 19 demo pack and persist one reconciliation run."""
+        from evaluation.demo import build_demo_cases
+        from services.demo import financial_pairs_from_demo_cases, run_reconciliation
+
+        cases = list(build_demo_cases())
+        sources, targets = financial_pairs_from_demo_cases(cases)
+        outcome = run_reconciliation(sources, targets)
+        run = store.create_reconciliation_run(
+            results=outcome["results"],
+            exceptions=outcome["exceptions"],
+        )
+        review = None
+        if outcome["exceptions"]:
+            review = store.queue_review(run["id"])
+        store.add_audit(
+            AuditEvent(
+                event_type="DEMO_RECONCILIATION_COMPLETED",
+                actor="demo_orchestrator",
+                entity_type="ReconciliationRun",
+                entity_id=UUID(run["id"]),
+                occurred_at=datetime.now(UTC),
+                details={
+                    "case_count": len(cases),
+                    "matched_count": outcome["matched_count"],
+                    "exception_count": outcome["exception_count"],
+                },
+            )
+        )
+        return {
+            "run": run,
+            "review": review,
+            "case_count": len(cases),
+            "matched_count": outcome["matched_count"],
+            "exception_count": outcome["exception_count"],
+        }
+
+    @router.post("/demo/ml-review")
     def ml_review(request: MLReviewRequest) -> dict[str, object]:
-        """Return bounded ML review suggestions without mutating any record."""
+        """Return synthetic-demo ML suggestions without mutating any record."""
         if ml_model_directory is None:
             raise HTTPException(
                 status_code=503,

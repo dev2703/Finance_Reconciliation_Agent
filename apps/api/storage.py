@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, Protocol
 from uuid import UUID, uuid4
@@ -11,6 +12,15 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
 
 from packages.contracts import AuditEvent, Document, IngestionStatus
+
+
+def _as_json(value: Any) -> Any:
+    """Normalize SQLite TEXT JSON and PostgreSQL JSON/JSONB driver values."""
+    if isinstance(value, (dict, list)):
+        return value
+    if value is None:
+        return None
+    return json.loads(value)
 
 
 class ObjectStore(Protocol):
@@ -50,6 +60,12 @@ class DocumentStore:
             "DATABASE_URL",
             "sqlite:///./.data/finance_reconciliation.sqlite3",
         )
+        if self.database_url.startswith("postgresql://"):
+            self.database_url = self.database_url.replace(
+                "postgresql://", "postgresql+psycopg://", 1
+            )
+        elif self.database_url.startswith("postgres://"):
+            self.database_url = self.database_url.replace("postgres://", "postgresql+psycopg://", 1)
         self.engine = create_engine(self.database_url, future=True, pool_pre_ping=True)
         self.objects = object_store or default_object_store()
         self._initialized = False
@@ -79,6 +95,34 @@ class DocumentStore:
                         records_json TEXT NOT NULL DEFAULT '[]',
                         preview_json TEXT NOT NULL DEFAULT '[]',
                         errors_json TEXT NOT NULL DEFAULT '[]'
+                    )
+                    """
+                )
+            )
+            connection.execute(
+                text(
+                    """CREATE TABLE IF NOT EXISTS investigation_runs (
+                        id TEXT PRIMARY KEY, reconciliation_run_id TEXT NOT NULL,
+                        created_at TEXT NOT NULL, output_json TEXT NOT NULL,
+                        telemetry_json TEXT NOT NULL
+                    )"""
+                )
+            )
+            connection.execute(
+                text("""CREATE TABLE IF NOT EXISTS review_decisions (
+                    id TEXT PRIMARY KEY, run_id TEXT NOT NULL, status TEXT NOT NULL,
+                    actor TEXT, reason TEXT, created_at TEXT NOT NULL, decided_at TEXT
+                )""")
+            )
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS reconciliation_runs (
+                        id TEXT PRIMARY KEY,
+                        created_at TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        results_json TEXT NOT NULL,
+                        exceptions_json TEXT NOT NULL
                     )
                     """
                 )
@@ -123,10 +167,14 @@ class DocumentStore:
     def find_by_hash(self, sha256: str) -> dict[str, Any] | None:
         self._ensure_initialized()
         with self.engine.connect() as connection:
-            row = connection.execute(
-                text("SELECT * FROM ingestion_documents WHERE sha256 = :sha256"),
-                {"sha256": sha256},
-            ).mappings().first()
+            row = (
+                connection.execute(
+                    text("SELECT * FROM ingestion_documents WHERE sha256 = :sha256"),
+                    {"sha256": sha256},
+                )
+                .mappings()
+                .first()
+            )
         return self._deserialize(row) if row else None
 
     def create(
@@ -225,10 +273,14 @@ class DocumentStore:
             )
             if self.engine.dialect.name == "postgresql":
                 query += " FOR UPDATE SKIP LOCKED"
-            row = connection.execute(
-                text(query),
-                {"now": now},
-            ).mappings().first()
+            row = (
+                connection.execute(
+                    text(query),
+                    {"now": now},
+                )
+                .mappings()
+                .first()
+            )
             if row is None:
                 return None
             connection.execute(
@@ -296,9 +348,7 @@ class DocumentStore:
                 {
                     "status": status.value,
                     "progress": (
-                        100
-                        if status in {IngestionStatus.PARSED, IngestionStatus.FAILED}
-                        else 0
+                        100 if status in {IngestionStatus.PARSED, IngestionStatus.FAILED} else 0
                     ),
                     "message": (
                         "Ready for confirmation"
@@ -315,10 +365,14 @@ class DocumentStore:
     def get(self, document_id: UUID) -> dict[str, Any] | None:
         self._ensure_initialized()
         with self.engine.connect() as connection:
-            row = connection.execute(
-                text("SELECT * FROM ingestion_documents WHERE id = :id"),
-                {"id": str(document_id)},
-            ).mappings().first()
+            row = (
+                connection.execute(
+                    text("SELECT * FROM ingestion_documents WHERE id = :id"),
+                    {"id": str(document_id)},
+                )
+                .mappings()
+                .first()
+            )
         return self._deserialize(row) if row else None
 
     def confirm(self, document_id: UUID) -> bool:
@@ -364,13 +418,252 @@ class DocumentStore:
                 },
             )
 
-    def audit_events(self, document_id: UUID) -> list[dict[str, Any]]:
+    def create_reconciliation_run(
+        self, *, results: list[dict[str, Any]], exceptions: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        self._ensure_initialized()
+        run_id = str(uuid4())
+        created_at = datetime.now().isoformat()
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    """INSERT INTO reconciliation_runs
+                    (id, created_at, status, results_json, exceptions_json)
+                    VALUES (:id, :created_at, 'COMPLETED', :results, :exceptions)"""
+                ),
+                {
+                    "id": run_id,
+                    "created_at": created_at,
+                    "results": json.dumps(results),
+                    "exceptions": json.dumps(exceptions),
+                },
+            )
+        return self.get_reconciliation_run(run_id)  # type: ignore[return-value]
+
+    def get_reconciliation_run(self, run_id: str) -> dict[str, Any] | None:
         self._ensure_initialized()
         with self.engine.connect() as connection:
-            rows = connection.execute(
-                text("SELECT * FROM audit_events WHERE entity_id = :id ORDER BY occurred_at"),
-                {"id": str(document_id)},
-            ).mappings().all()
+            row = (
+                connection.execute(
+                    text("SELECT * FROM reconciliation_runs WHERE id = :id"), {"id": run_id}
+                )
+                .mappings()
+                .first()
+            )
+        if row is None:
+            return None
+        return {
+            "id": str(row["id"]),
+            "created_at": str(row["created_at"]),
+            "status": row["status"],
+            "results": _as_json(row["results_json"]),
+            "exceptions": _as_json(row["exceptions_json"]),
+        }
+
+    def list_reconciliation_runs(self) -> list[dict[str, Any]]:
+        self._ensure_initialized()
+        with self.engine.connect() as connection:
+            rows = (
+                connection.execute(
+                    text("SELECT * FROM reconciliation_runs ORDER BY created_at DESC")
+                )
+                .mappings()
+                .all()
+            )
+        return [
+            {
+                "id": str(row["id"]),
+                "created_at": str(row["created_at"]),
+                "status": row["status"],
+                "result_count": len(_as_json(row["results_json"])),
+                "exception_count": len(_as_json(row["exceptions_json"])),
+            }
+            for row in rows
+        ]
+
+    def queue_review(self, run_id: str) -> dict[str, Any]:
+        self._ensure_initialized()
+        review_id = str(uuid4())
+        created_at = datetime.now().isoformat()
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO review_decisions (id, run_id, status, created_at)
+                    VALUES (:id, :run_id, 'PENDING', :created_at)
+                    """
+                ),
+                {"id": review_id, "run_id": run_id, "created_at": created_at},
+            )
+        return self.get_review(review_id)  # type: ignore[return-value]
+
+    def get_review(self, review_id: str) -> dict[str, Any] | None:
+        with self.engine.connect() as connection:
+            row = (
+                connection.execute(
+                    text("SELECT * FROM review_decisions WHERE id = :id"),
+                    {"id": review_id},
+                )
+                .mappings()
+                .first()
+            )
+        if row is None:
+            return None
+        return {
+            "id": str(row["id"]),
+            "run_id": str(row["run_id"]),
+            "status": row["status"],
+            "actor": row["actor"],
+            "reason": row["reason"],
+            "created_at": str(row["created_at"]),
+            "decided_at": None if row["decided_at"] is None else str(row["decided_at"]),
+        }
+
+    def decide_review(
+        self, review_id: str, *, decision: str, actor: str, reason: str
+    ) -> dict[str, Any] | None:
+        with self.engine.begin() as connection:
+            result = connection.execute(
+                text(
+                    """
+                    UPDATE review_decisions
+                    SET status = :status, actor = :actor, reason = :reason,
+                        decided_at = :decided_at
+                    WHERE id = :id AND status = 'PENDING'
+                    """
+                ),
+                {
+                    "status": decision,
+                    "actor": actor,
+                    "reason": reason,
+                    "decided_at": datetime.now().isoformat(),
+                    "id": review_id,
+                },
+            )
+        return self.get_review(review_id) if result.rowcount == 1 else None
+
+    def list_pending_reviews(self) -> list[dict[str, Any]]:
+        self._ensure_initialized()
+        with self.engine.connect() as connection:
+            rows = (
+                connection.execute(
+                    text(
+                        """
+                    SELECT * FROM review_decisions
+                    WHERE status = 'PENDING'
+                    ORDER BY created_at DESC
+                    """
+                    )
+                )
+                .mappings()
+                .all()
+            )
+        return [
+            {
+                "id": str(row["id"]),
+                "run_id": str(row["run_id"]),
+                "status": row["status"],
+                "actor": row["actor"],
+                "reason": row["reason"],
+                "created_at": str(row["created_at"]),
+                "decided_at": None if row["decided_at"] is None else str(row["decided_at"]),
+            }
+            for row in rows
+        ]
+
+    def save_investigation(
+        self, run_id: str, *, output: dict[str, Any], telemetry: dict[str, Any]
+    ) -> dict[str, Any]:
+        investigation_id = str(uuid4())
+        created_at = datetime.now().isoformat()
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    """INSERT INTO investigation_runs
+                    (id, reconciliation_run_id, created_at, output_json, telemetry_json)
+                    VALUES (:id, :run_id, :created_at, :output, :telemetry)"""
+                ),
+                {
+                    "id": investigation_id,
+                    "run_id": run_id,
+                    "created_at": created_at,
+                    "output": json.dumps(output),
+                    "telemetry": json.dumps(telemetry),
+                },
+            )
+        return {
+            "id": investigation_id,
+            "reconciliation_run_id": run_id,
+            "created_at": created_at,
+            "output": output,
+            "telemetry": telemetry,
+        }
+
+    def list_investigations(self, run_id: str) -> list[dict[str, Any]]:
+        with self.engine.connect() as connection:
+            rows = (
+                connection.execute(
+                    text(
+                        """SELECT * FROM investigation_runs
+                    WHERE reconciliation_run_id = :run_id ORDER BY created_at DESC"""
+                    ),
+                    {"run_id": run_id},
+                )
+                .mappings()
+                .all()
+            )
+        return [
+            {
+                "id": row["id"],
+                "reconciliation_run_id": row["reconciliation_run_id"],
+                "created_at": row["created_at"],
+                "output": _as_json(row["output_json"]),
+                "telemetry": _as_json(row["telemetry_json"]),
+            }
+            for row in rows
+        ]
+
+    def list_all_investigations(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        with self.engine.connect() as connection:
+            rows = (
+                connection.execute(
+                    text(
+                        """SELECT * FROM investigation_runs
+                        ORDER BY created_at DESC LIMIT :limit"""
+                    ),
+                    {"limit": limit},
+                )
+                .mappings()
+                .all()
+            )
+        return [
+            {
+                "id": row["id"],
+                "reconciliation_run_id": row["reconciliation_run_id"],
+                "created_at": row["created_at"],
+                "output": _as_json(row["output_json"]),
+                "telemetry": _as_json(row["telemetry_json"]),
+            }
+            for row in rows
+        ]
+
+    def list_audit_events(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        self._ensure_initialized()
+        with self.engine.connect() as connection:
+            rows = (
+                connection.execute(
+                    text(
+                        """
+                    SELECT * FROM audit_events
+                    ORDER BY occurred_at DESC
+                    LIMIT :limit
+                    """
+                    ),
+                    {"limit": limit},
+                )
+                .mappings()
+                .all()
+            )
         return [
             {
                 "id": row["id"],
@@ -380,31 +673,107 @@ class DocumentStore:
                 "entity_id": row["entity_id"],
                 "occurred_at": row["occurred_at"],
                 "reason": row["reason"],
-                "details": json.loads(row["details_json"]),
+                "details": _as_json(row["details_json"]),
+            }
+            for row in rows
+        ]
+
+    def audit_events(self, document_id: UUID) -> list[dict[str, Any]]:
+        self._ensure_initialized()
+        with self.engine.connect() as connection:
+            rows = (
+                connection.execute(
+                    text("SELECT * FROM audit_events WHERE entity_id = :id ORDER BY occurred_at"),
+                    {"id": str(document_id)},
+                )
+                .mappings()
+                .all()
+            )
+        return [
+            {
+                "id": row["id"],
+                "event_type": row["event_type"],
+                "actor": row["actor"],
+                "entity_type": row["entity_type"],
+                "entity_id": row["entity_id"],
+                "occurred_at": row["occurred_at"],
+                "reason": row["reason"],
+                "details": _as_json(row["details_json"]),
             }
             for row in rows
         ]
 
     def dashboard_metrics(self) -> dict[str, int | str]:
-        """Return ingestion-backed metrics available before reconciliation persistence exists."""
+        """Return ingestion-backed and reconciliation-backed dashboard metrics."""
         self._ensure_initialized()
+        dialect = self.engine.dialect.name
         with self.engine.connect() as connection:
-            row = connection.execute(
-                text(
-                    "SELECT COALESCE(SUM(json_array_length(records_json)), 0) AS processed "
-                    "FROM ingestion_documents WHERE status IN ('PARSED', 'CONFIRMED')"
+            if dialect == "postgresql":
+                processed_row = (
+                    connection.execute(
+                        text(
+                            """
+                        SELECT COALESCE(
+                            SUM(jsonb_array_length(records_json)), 0
+                        ) AS processed
+                        FROM ingestion_documents
+                        WHERE status IN ('PARSED', 'CONFIRMED')
+                        """
+                        )
+                    )
+                    .mappings()
+                    .one()
                 )
-            ).mappings().one()
-        # SQLite's JSON aggregate is used by the local MVP. PostgreSQL dashboard
-        # metrics will be sourced from reconciliation runs when those are persisted.
+            else:
+                processed_row = (
+                    connection.execute(
+                        text(
+                            """
+                        SELECT COALESCE(SUM(json_array_length(records_json)), 0) AS processed
+                        FROM ingestion_documents
+                        WHERE status IN ('PARSED', 'CONFIRMED')
+                        """
+                        )
+                    )
+                    .mappings()
+                    .one()
+                )
+
+            run_rows = (
+                connection.execute(
+                    text("SELECT results_json, exceptions_json FROM reconciliation_runs")
+                )
+                .mappings()
+                .all()
+            )
+            pending_reviews = (
+                connection.execute(
+                    text("SELECT COUNT(*) AS count FROM review_decisions WHERE status = 'PENDING'")
+                )
+                .mappings()
+                .one()["count"]
+            )
+
+        matched = 0
+        exceptions = 0
+        amount_at_risk = Decimal(0)
+        for row in run_rows:
+            results = _as_json(row["results_json"])
+            run_exceptions = _as_json(row["exceptions_json"])
+            matched += sum(1 for item in results if item.get("status") == "MATCHED")
+            exceptions += len(run_exceptions)
+            amount_at_risk += Decimal(len(run_exceptions))
+
+        total = matched + exceptions
+        reconciliation_rate = int((matched / total) * 100) if total else 0
         return {
-            "transactions_processed": int(row["processed"]),
-            "reconciled_count": 0,
-            "reconciliation_rate": 0,
-            "exception_count": 0,
-            "amount_at_risk": "0.00",
-            "pending_reviews": 0,
-            "automation_rate": 0,
+            "transactions_processed": int(processed_row["processed"]),
+            "reconciled_count": matched,
+            "reconciliation_rate": reconciliation_rate,
+            "exception_count": exceptions,
+            "amount_at_risk": format(amount_at_risk, "f") if amount_at_risk else "0.00",
+            "pending_reviews": int(pending_reviews),
+            "automation_rate": reconciliation_rate,
         }
 
     @staticmethod
@@ -422,9 +791,9 @@ class DocumentStore:
             "progress": row["progress"],
             "progress_message": row["progress_message"],
             "record_type": row["record_type"],
-            "column_mapping": json.loads(row["column_mapping_json"]),
+            "column_mapping": _as_json(row["column_mapping_json"]),
             "object_key": row["object_key"],
-            "records": json.loads(row["records_json"]),
-            "preview": json.loads(row["preview_json"]),
-            "errors": json.loads(row["errors_json"]),
+            "records": _as_json(row["records_json"]),
+            "preview": _as_json(row["preview_json"]),
+            "errors": _as_json(row["errors_json"]),
         }

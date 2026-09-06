@@ -15,27 +15,27 @@ This is the single current phase-status overview, based on the local review on *
 
 | Phase | Deliverable | Current status | Evidence / remaining work |
 |---|---|---|---|
-| 0 | [Repository + contracts](#phase-0--repository--contracts) | `IN_PROGRESS` | Shared models, scaffold, and migrations exist; clean PostgreSQL and CI acceptance remain unverified. |
+| 0 | [Repository + contracts](#phase-0--repository--contracts) | `IN_PROGRESS` | Clean PostgreSQL migration and fixture loading pass locally; CI now runs PostgreSQL, migrations, backend checks, frontend typecheck/build. Remote CI acceptance remains. |
 | 1 | [Ingestion foundation](#phase-1--ingestion-foundation) | `IN_PROGRESS` | CSV/XLSX upload, worker, preview, confirmation, and persistence exist; hardening issues remain. |
 | 2 | [PDF and financial-table ingestion](#phase-2--pdf-and-financial-table-ingestion) | `IN_PROGRESS` | Native, text-aligned no-border tables, and confidence-driven OCR fallback are tested; model fallback integration and broader fixtures remain. |
-| 3 | [Deterministic reconciliation engine](#phase-3--deterministic-reconciliation-engine) | `IN_PROGRESS` | One-to-one, one-to-many, many-to-one, audit output, and a stateless API are tested; persisted run integration remains. |
+| 3 | [Deterministic reconciliation engine](#phase-3--deterministic-reconciliation-engine) | `IN_PROGRESS` | One-to-one, one-to-many, many-to-one, audit output, stateless matching, and persisted reconciliation runs are tested. |
 | 4 | [Graph reconciliation engine](#phase-4--graph-reconciliation-engine) | `IN_PROGRESS` | Directed lineage and conserved split/fee allocation are tested; comparative benchmark acceptance remains. |
-| 5 | [ML matcher](#phase-5--ml-matcher) | `IN_PROGRESS` | `SYNTHETIC_DEMO_VALIDATED`: reproducible grouped-split calibration and fail-closed review-only API pass for payment→settlement fixtures. Broader adapters and independent calibration generalization remain. |
+| 5 | [ML matcher](#phase-5--ml-matcher) | `IN_PROGRESS` | `DEMO_OPTIONAL`: synthetic payment→settlement artifact is retained for demos only and is disabled unless explicitly configured. It is not part of the normal runtime workflow without labeled data. |
 | 6 | [Evaluation harness](#phase-6--evaluation-harness) | `COMPLETE` | Offline ReconRiver/FinRCA/FinBalance runners, metric engine, CLI, JSON/Markdown reports, and baseline comparison pass on fixture packs; external dataset acceptance remains optional. |
-| 7 | [Runtime application agents + tools](#phase-7--runtime-application-agents--tools) | `IN_PROGRESS` | Bounded runtime contracts, a read-only evidence-tool foundation, and budget enforcement exist; persisted tools and controller routing remain. |
+| 7 | [Runtime application agents + tools](#phase-7--runtime-application-agents--tools) | `IN_PROGRESS` | Bounded evidence-only investigation controller routes persisted unresolved runs through TensorMux; broader persisted record tools remain. |
 | 8 | [TensorMux + GLM integration](#phase-8--tensormux--glm-integration) | `IN_PROGRESS` | OpenAI-compatible client, strict outputs, evidence prompts, retries, and telemetry are implemented; live TensorMux/GLM reachability remains deployment acceptance. |
-| 9 | [Policy, approval, accounting execution](#phase-9--policy-approval-accounting-execution) | `IN_PROGRESS` | Deterministic policy, journal validation, audited human-review controls exist; API persistence and accounting execution remain absent. |
-| 10 | [FastAPI application](#phase-10--fastapi-application) | `IN_PROGRESS` | Ingestion API, worker, and ingestion-backed dashboard metrics exist; reconciliation, investigation, approval, and reporting routes remain. |
+| 9 | [Policy, approval, accounting execution](#phase-9--policy-approval-accounting-execution) | `IN_PROGRESS` | Review decisions persist through audited API controls; deterministic journal validation exists. External accounting execution remains absent. |
+| 10 | [FastAPI application](#phase-10--fastapi-application) | `IN_PROGRESS` | Persisted reconciliation, exceptions, TensorMux investigations, approvals, reports, audit, traces, ingestion, and demo routes exist; durable async reconciliation jobs remain. |
 | 11 | [Frontend foundation](#phase-11--frontend-foundation) | `IN_PROGRESS` | Upload and dashboard views with the finance visual foundation exist; broader UI foundation remains. |
-| 12 | [Reconciliation + exception UI](#phase-12--reconciliation--exception-ui) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
-| 13 | [Reporting + observability](#phase-13--reporting--observability) | `IN_PROGRESS` | Deterministic operational reports and append-only local run traces exist; persistence, UI, and Neatlogs export remain. |
+| 12 | [Reconciliation + exception UI](#phase-12--reconciliation--exception-ui) | `IN_PROGRESS` | Run workspace, exception queue, investigation/evidence view, and approval UI exist; deeper graph visualization remains. |
+| 13 | [Reporting + observability](#phase-13--reporting--observability) | `IN_PROGRESS` | Persisted GLM telemetry, global audit/trace APIs, operational reports, and report/trace UI exist; Neatlogs export remains. |
 | 14 | [Plaid sandbox connector](#phase-14--plaid-sandbox-connector) | `IN_PROGRESS` | Sandbox client, custom transaction simulation, webhook trigger, and bank-record normalization are implemented and mock-tested; live Sandbox acceptance remains. |
 | 15 | [Stripe sandbox connector](#phase-15--stripe-sandbox-connector) | `IN_PROGRESS` | Sandbox PaymentIntent/event/balance-transaction client and payment/settlement normalization are implemented and mock-tested; live Sandbox acceptance remains. |
 | 16 | [Reliability / performance hardening](#phase-16--reliability--performance-hardening) | `IN_PROGRESS` | Ingestion retries and upload deduplication exist; restart recovery and performance acceptance remain incomplete. |
 | 17 | [Agent quality optimization](#phase-17--agent-quality-optimization) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
-| 18 | [End-to-end integration](#phase-18--end-to-end-integration) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
+| 18 | [End-to-end integration](#phase-18--end-to-end-integration) | `IN_PROGRESS` | Demo seed → deterministic reconcile → persisted run/exceptions/review/reports works on Docker Postgres; full agent/policy/accounting E2E remains. |
 | 19 | [Demo dataset construction](#phase-19--demo-dataset-construction) | `IN_PROGRESS` | A deterministic 40-case pack covers all recommended categories with expected outcomes; end-to-end system predictions remain integration work. |
-| 20 | [Demo orchestration](#phase-20--demo-orchestration) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
+| 20 | [Demo orchestration](#phase-20--demo-orchestration) | `IN_PROGRESS` | `POST /demo/seed-and-run` and UI seed action persist a run; frontend workspace/exception/review/report views exist. |
 
 ### How to interpret the imported checklists
 
@@ -1259,6 +1259,17 @@ AO workers should be assigned leaf features with clear acceptance tests, not vag
 - **Benchmark result:** Offline fixture packs and demo acceptance fixtures produce JSON/Markdown baseline-vs-system reports; not live E2E accuracy
 - **Known limitations:** External ReconRiver/FinRCA/FinBalance packs and real workflow prediction exports are not required for local exit-gate; replace prediction JSONL to measure the live system
 - **Next dependency:** Emit prediction JSONL from the Phase 18 reconciliation workflow and optionally point `--fixtures` at external packs
+
+### Phase 10/12/18/20 Postgres + demo path entry — 2026-09-06
+
+- **Owner:** Agents J, L, G, K
+- **Branch/PR:** Local Docker Postgres + API/UI orchestration; PR not opened
+- **Status:** [~] IN_PROGRESS
+- **Files:** `infra/docker-compose.yml`, `Database/migrations/004_reconciliation_persistence.sql`, `apps/api/`, `services/demo/`, `apps/web/app/{reconciliation,exceptions,investigation,reviews,reports}/`, `tests/test_demo_orchestration.py`
+- **Tests:** Demo orchestration + API suite pass (16 focused); frontend typecheck passes; Postgres smoke via `POST /demo/seed-and-run`
+- **Benchmark result:** Demo pack yields matched + exception outcomes on deterministic matching against Docker Postgres
+- **Known limitations:** Local Homebrew Postgres occupies `:5432`; finance DB uses `:5433`. API default port is `8001` to avoid collision with other local services. Graph visualization and live TensorMux/Plaid/Stripe remain open.
+- **Next dependency:** Supervise API on `:8001`, point the web app at it, and optionally wire live TensorMux for investigation
 
 ### Phase 13 reporting/observability foundation entry — 2026-09-06
 
