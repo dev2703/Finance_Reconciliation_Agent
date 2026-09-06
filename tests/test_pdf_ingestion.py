@@ -1,17 +1,16 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from io import BytesIO
 from uuid import uuid4
 
-import pytest
 import fitz
+import pytest
 
 from services.ingestion.pdf import (
     extract_pdf,
-    normalize_financial_value,
     is_repeated_header,
     is_subtotal_or_total,
+    normalize_financial_value,
 )
 from services.ingestion.worker import _extract_records_from_pdf
 
@@ -21,13 +20,13 @@ def create_test_pdf_with_table():
     document = fitz.open()
     page = document.new_page()
     data = [
-        ['Description', 'Amount', 'Date'],
-        ['Invoice #1001', '$1,234.56', '2025-01-15'],
-        ['Invoice #1002', '($500.00)', '2025-01-16'],
-        ['Payment Received', '$2,100.00', '2025-01-17'],
-        ['Fee', '(25.50)', '2025-01-18'],
+        ["Description", "Amount", "Date"],
+        ["Invoice #1001", "$1,234.56", "2025-01-15"],
+        ["Invoice #1002", "($500.00)", "2025-01-16"],
+        ["Payment Received", "$2,100.00", "2025-01-17"],
+        ["Fee", "(25.50)", "2025-01-18"],
     ]
-    
+
     column_x = [50, 250, 370]
     row_height = 30
     for row_index, row in enumerate(data):
@@ -55,7 +54,7 @@ def create_test_pdf_native_text():
         "01/15/2025  ACH Payment      ($1,234.56)",
         "01/20/2025  Deposit          $3,100.50",
     ]
-    
+
     for transaction in transactions:
         page.insert_text((72, y), transaction, fontsize=10)
         y += 18
@@ -64,23 +63,23 @@ def create_test_pdf_native_text():
 
 class TestPDFExtraction:
     """Tests for PDF native text extraction."""
-    
+
     def test_extract_native_text(self):
         """Test extraction of native text from PDF."""
         pdf_content = create_test_pdf_native_text()
         pages = extract_pdf(pdf_content, source_name="test.pdf")
-        
+
         assert len(pages) >= 1
         assert pages[0]["page_number"] == 1
         assert pages[0]["extraction_method"] in ["native_text", "ocr"]
         assert "Bank Statement" in pages[0]["text"] or "bank statement" in pages[0]["text"].lower()
         assert pages[0]["has_native_text"] or pages[0]["extraction_method"] == "ocr"
-    
+
     def test_extract_words_with_coordinates(self):
         """Test that words are extracted with coordinate information."""
         pdf_content = create_test_pdf_native_text()
         pages = extract_pdf(pdf_content, source_name="test.pdf")
-        
+
         page = pages[0]
         if page["words"]:
             # Check that words have coordinate information
@@ -89,7 +88,7 @@ class TestPDFExtraction:
             assert "text" in word
             assert "x0" in word and "y0" in word
             assert "x1" in word and "y1" in word
-    
+
     def test_pdf_with_multiple_pages(self):
         """Test extraction from multi-page PDF."""
         document = fitz.open()
@@ -104,24 +103,24 @@ class TestPDFExtraction:
 
 class TestTableExtraction:
     """Tests for table detection and extraction from PDFs."""
-    
+
     def test_table_detection(self):
         """Test that tables are detected in PDF pages."""
         pdf_content = create_test_pdf_with_table()
         pages = extract_pdf(pdf_content, source_name="table_test.pdf")
-        
+
         assert len(pages) >= 1
         # Table detection may or may not find tables depending on PDF structure
         # Just verify the extraction runs without error
         page = pages[0]
         assert "text" in page
         assert "words" in page or "tables" in page
-    
+
     def test_table_cells_have_metadata(self):
         """Test that extracted table cells contain required metadata."""
         pdf_content = create_test_pdf_with_table()
         pages = extract_pdf(pdf_content, source_name="table_test.pdf")
-        
+
         # If tables were found, verify structure
         for page in pages:
             if "tables" in page:
@@ -173,64 +172,64 @@ class TestTableExtraction:
 
 class TestFinancialNormalization:
     """Tests for financial value normalization."""
-    
+
     def test_normalize_positive_amount(self):
         """Test normalization of simple positive amounts."""
         amount, original = normalize_financial_value("$1,234.56")
         assert amount == Decimal("1234.56")
         assert original == "$1,234.56"
-    
+
     def test_normalize_parentheses_negative(self):
         """Test that parentheses negatives are converted correctly."""
         amount, original = normalize_financial_value("($500.00)")
         assert amount == Decimal("-500.00")
         assert original == "($500.00)"
-    
+
     def test_normalize_millions_scaling(self):
         """Test that millions suffix is applied correctly."""
         amount, original = normalize_financial_value("1.5M")
-        assert amount == Decimal("1500000")
-        
+        assert amount == Decimal(1500000)
+
         amount, original = normalize_financial_value("2.5M")
-        assert amount == Decimal("2500000")
-    
+        assert amount == Decimal(2500000)
+
     def test_normalize_thousands_scaling(self):
         """Test that thousands suffix is applied correctly."""
         amount, original = normalize_financial_value("500K")
-        assert amount == Decimal("500000")
-    
+        assert amount == Decimal(500000)
+
     def test_normalize_billions_scaling(self):
         """Test that billions suffix is applied correctly."""
         amount, original = normalize_financial_value("1.2B")
-        assert amount == Decimal("1200000000")
-    
+        assert amount == Decimal(1200000000)
+
     def test_normalize_thousands_separator(self):
         """Test removal of thousands separators."""
         amount, original = normalize_financial_value("1,000,000.00")
         assert amount == Decimal("1000000.00")
-    
+
     def test_normalize_european_format(self):
         """Test European number format (comma as decimal)."""
         amount, original = normalize_financial_value("1.234,56")
         assert amount == Decimal("1234.56")
-    
+
     def test_normalize_invalid_input(self):
         """Test that invalid inputs return None."""
         amount, original = normalize_financial_value("not a number")
         assert amount is None
         assert original is None
-    
+
     def test_normalize_empty_input(self):
         """Test that empty inputs return None."""
         amount, original = normalize_financial_value("")
         assert amount is None
         assert original is None
-    
+
     def test_normalize_complex_amount(self):
         """Test complex amount with multiple transformations."""
         amount, original = normalize_financial_value("($ 1,234.56)")
         assert amount == Decimal("-1234.56")
-    
+
     def test_normalize_currency_symbols(self):
         """Test various currency symbols."""
         for symbol in ["$", "€", "£", "¥"]:
@@ -240,7 +239,7 @@ class TestFinancialNormalization:
 
 class TestHeaderDetection:
     """Tests for repeated header detection."""
-    
+
     def test_repeated_header_detection(self):
         """Test detection of headers that appear multiple times."""
         header = "Date, Description, Amount"
@@ -249,16 +248,16 @@ class TestHeaderDetection:
             "01/01/2025, Payment, $100",
             "Date, Description, Amount",
         ]
-        
+
         assert is_repeated_header(header, previous, threshold=2)
-    
+
     def test_no_repeated_header(self):
         """Test that unique headers are not flagged as repeated."""
         header = "Column A, Column B, Column C"
         previous = ["Column A, Column B, Column C"]
-        
+
         assert not is_repeated_header(header, previous, threshold=2)
-    
+
     def test_case_insensitive_header_matching(self):
         """Test that header matching is case-insensitive."""
         header = "DATE, DESCRIPTION, AMOUNT"
@@ -267,30 +266,30 @@ class TestHeaderDetection:
             "some other row",
             "Date, Description, Amount",
         ]
-        
+
         assert is_repeated_header(header, previous, threshold=2)
 
 
 class TestTotalDetection:
     """Tests for total/subtotal row detection."""
-    
+
     def test_detect_total_row(self):
         """Test detection of total rows."""
         assert is_subtotal_or_total("Total: $5,000.00")
         assert is_subtotal_or_total("TOTAL")
         assert is_subtotal_or_total("Grand Total")
-    
+
     def test_detect_subtotal_row(self):
         """Test detection of subtotal rows."""
         assert is_subtotal_or_total("Subtotal")
         assert is_subtotal_or_total("Sub-total: $2,500.00")
-    
+
     def test_detect_balance_row(self):
         """Test detection of balance/sum rows."""
         assert is_subtotal_or_total("Balance: $10,000")
         assert is_subtotal_or_total("Sum")
         assert is_subtotal_or_total("Net Amount")
-    
+
     def test_non_total_row(self):
         """Test that regular rows are not flagged as totals."""
         assert not is_subtotal_or_total("Invoice #1001")

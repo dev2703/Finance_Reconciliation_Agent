@@ -1303,8 +1303,8 @@ Phase 5
 Owner: Agent F
 Branch/PR: `ao/finance_reconciliation_agent-2/ml-review-integration` / PR #1
 Status: [~] IN_PROGRESS
-Files: `services/ml/`, `tests/test_ml_review_workflow.py`
-Tests: 7 focused Phase 5 workflow tests; full Python suite 75 tests; scoped Ruff passes; existing synthetic Phase 5 gate 22 tests passes
+Files: `services/ml/`, `tests/test_ml_review_workflow.py`; mechanical CI lint cleanup in `tests/test_graph_reconciliation.py` and `tests/test_pdf_ingestion.py`
+Tests: 7 focused Phase 5 workflow tests; full Python suite 75 tests; CI Ruff scope passes; existing synthetic Phase 5 gate 22 tests passes
 Benchmark result: Existing synthetic review gate passes, but remains separate from this integration slice; no new model-quality claim
 Known limitations: Pairwise review suggestions only. Partial payments, one-to-many/many-to-one allocations, insufficient or ambiguous competition, unvalidated relationships, and uncalibrated artifacts abstain as unresolved. Approval records review state only and cannot write accounting state. Training, grouped splits, calibration, and a committed production artifact remain pending.
 Contract changes: Added service-local `Candidate`, `ObservableRecord`, `ReviewProposal`, `ReviewOutcome`, and `ReviewDecision` contracts. No shared canonical schema or API endpoint changed.
