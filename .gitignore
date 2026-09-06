@@ -10,3 +10,4 @@ node_modules/
 agents.md
 plan.md
 .env.example
+.vscode
