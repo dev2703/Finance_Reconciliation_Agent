@@ -6,7 +6,7 @@ fallback.
 
 ## Local ingestion
 
-The MVP stores metadata in SQLite and uploaded files in `.data/objects`:
+The metadata is stored in SQLite and uploaded files in `.data/objects`:
 
 ```bash
 uvicorn apps.api.main:app --reload
