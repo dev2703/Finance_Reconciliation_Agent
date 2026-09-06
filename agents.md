@@ -499,7 +499,7 @@ Status: [ ]
 
 Implement feature extraction from candidate pairs/graphs.
 
-Status: [ ]
+Status: [x] COMPLETE
 
 5.3 Baseline model — Agent F
 
@@ -1172,7 +1172,7 @@ PHASE 1  CSV/XLSX ingestion        [x]
 PHASE 2  PDF/table ingestion       [x]
 PHASE 3  Deterministic recon       [x]
 PHASE 4  Graph engine              [x]
-PHASE 5  ML matcher                [ ]
+PHASE 5  ML matcher                [~]
 PHASE 6  Evaluation                [ ]
 PHASE 7  AO agents/tools           [ ]
 PHASE 8  TensorMux + GLM           [ ]
@@ -1301,13 +1301,13 @@ Next dependency: Phase 5 ML matcher for ranking ambiguous paths; Phase 6 evaluat
 Phase 5
 
 Owner: Agent F
-Branch/PR: `ao/finance_reconciliation_agent-2/ml-review-integration` / PR #1
+Branch/PR: `ao/finance_reconciliation_agent-2/ml-review-integration` / PR #1; review fixes PR #2
 Status: [~] IN_PROGRESS
 Files: `services/ml/`, `tests/test_ml_review_workflow.py`; mechanical CI lint cleanup in `tests/test_graph_reconciliation.py` and `tests/test_pdf_ingestion.py`
-Tests: 7 focused Phase 5 workflow tests; full Python suite 75 tests; CI Ruff scope passes; existing synthetic Phase 5 gate 22 tests passes
-Benchmark result: Existing synthetic review gate passes, but remains separate from this integration slice; no new model-quality claim
+Tests: 14 focused Phase 5 workflow tests; full Python suite 82 tests; CI Ruff scope passes
+Benchmark result: No model-quality benchmark included in this integration slice
 Known limitations: Pairwise review suggestions only. Partial payments, one-to-many/many-to-one allocations, insufficient or ambiguous competition, unvalidated relationships, and uncalibrated artifacts abstain as unresolved. Approval records review state only and cannot write accounting state. Training, grouped splits, calibration, and a committed production artifact remain pending.
-Contract changes: Added service-local `Candidate`, `ObservableRecord`, `ReviewProposal`, `ReviewOutcome`, and `ReviewDecision` contracts. No shared canonical schema or API endpoint changed.
+Contract changes: Added service-local `Candidate`, `ObservableRecord`, `ReviewProposal`, `ReviewOutcome`, and `ReviewDecision` contracts. Uncovered input records emit `NO_CANDIDATES`; artifacts without a review threshold emit `MODEL_NOT_CALIBRATED`. No shared canonical schema or API endpoint changed.
 Next dependency: Land the Phase 5 training/evaluation prototype and validated artifact, then wire persisted review storage/API under the Phase 9/10 owners.
 
 Phase 6

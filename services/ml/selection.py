@@ -2,6 +2,7 @@
 
 import math
 from collections import defaultdict
+from decimal import Decimal
 
 from .features import review_eligible
 
@@ -37,7 +38,8 @@ def review_mask(candidates, scores, threshold):
                 and threshold is not None
                 and scores[index] >= threshold
                 and all(
-                    scores[index] - scores[rival] >= REVIEW_POLICY["minimum_margin"]
+                    Decimal(str(scores[index])) - Decimal(str(scores[rival]))
+                    >= Decimal(str(REVIEW_POLICY["minimum_margin"]))
                     for rival in rivals
                 )
             )

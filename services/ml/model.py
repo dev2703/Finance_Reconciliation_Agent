@@ -1,4 +1,8 @@
-"""Trusted-artifact loading and review-only inference."""
+"""Locally trusted artifact loading and review-only inference.
+
+The adjacent checksum detects accidental corruption only. It does not authenticate an
+artifact, and joblib files must never be loaded from an untrusted or shared source.
+"""
 
 import hashlib
 import json
@@ -63,6 +67,8 @@ def rank_candidates(directory: Path, candidates: list[Candidate]) -> list[dict]:
             reason = "CURRENCY_MISMATCH"
         elif not review_eligible(candidate):
             reason = "PARTY_CONFLICT"
+        elif threshold is None:
+            reason = "MODEL_NOT_CALIBRATED"
         elif not metadata.get("review_gate_passed", False):
             reason = "MODEL_NOT_VALIDATED"
         elif not supported:
@@ -71,7 +77,7 @@ def rank_candidates(directory: Path, candidates: list[Candidate]) -> list[dict]:
             reason = "INCOMPATIBLE_REVIEW_POLICY"
         elif review:
             reason = "REVIEW_ONLY_MODEL"
-        elif threshold is not None and score >= threshold:
+        elif score >= threshold:
             reason = "AMBIGUOUS_RECORD_MATCH"
         else:
             reason = "BELOW_REVIEW_THRESHOLD"
