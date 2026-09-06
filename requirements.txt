@@ -64,3 +64,4 @@ pytest-cov>=6.0,<7.0
 # ---------- Quality / developer tooling ----------
 ruff>=0.9,<1.0
 mypy>=1.15,<2.0
+neatlogs>=1.4.21
