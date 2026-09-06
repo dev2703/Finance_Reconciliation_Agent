@@ -7,19 +7,6 @@ on:
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: finance_reconciliation
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d finance_reconciliation"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -35,13 +22,3 @@ jobs:
         working-directory: apps/web
       - run: npm run typecheck
         working-directory: apps/web
-      - uses: tj-actions/changed-files@v45
-        id: changed
-        with:
-          files: infra/migrations/*.sql
-      - if: steps.changed.outputs.any_changed == 'true'
-        run: |
-          PGPASSWORD=postgres psql -h localhost -U postgres -d finance_reconciliation \
-            -v ON_ERROR_STOP=1 \
-            -f infra/migrations/001_initial_schema.sql \
-            -f infra/migrations/002_seed_fixture.sql

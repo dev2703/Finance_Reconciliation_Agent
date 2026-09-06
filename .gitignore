@@ -5,5 +5,7 @@ __pycache__/
 node_modules/
 .next/
 .env
+.data/
+*.tsbuildinfo
 agents.md
 plan.md

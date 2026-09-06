@@ -13,6 +13,23 @@ class ContractModel(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
+class Provenance(ContractModel):
+    source_name: str
+    source_type: str
+    sheet: str | None = None
+    row_number: int | None = Field(default=None, ge=1)
+    original_fields: dict[str, str] = Field(default_factory=dict)
+    extraction_method: str = "tabular"  # "tabular", "native_text", "ocr", "table_extraction"
+    parser_confidence: Decimal = Field(default=Decimal(1), ge=0, le=1)
+    transformation_history: list[str] = Field(default_factory=list)
+    # PDF-specific fields
+    page_number: int | None = Field(default=None, ge=1)
+    table_index: int | None = Field(default=None, ge=0)
+    table_row_index: int | None = Field(default=None, ge=0)
+    table_column_index: int | None = Field(default=None, ge=0)
+    bbox: dict[str, Any] | None = None  # {"x0": float, "y0": float, "x1": float, "y1": float}
+
+
 class FinancialRecord(ContractModel):
     id: UUID = Field(default_factory=uuid4)
     external_id: str | None = None
@@ -22,6 +39,9 @@ class FinancialRecord(ContractModel):
     description: str | None = None
     source_document_id: UUID | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    provenance: Provenance = Field(
+        default_factory=lambda: Provenance(source_name="unknown", source_type="unknown")
+    )
 
 
 class Invoice(FinancialRecord):
@@ -69,6 +89,22 @@ class Document(ContractModel):
     source: str
     page_count: int | None = Field(default=None, ge=1)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class IngestionStatus(StrEnum):
+    UPLOADED = "UPLOADED"
+    INGESTING = "INGESTING"
+    PARSED = "PARSED"
+    FAILED = "FAILED"
+    CONFIRMED = "CONFIRMED"
+
+
+class ParseError(ContractModel):
+    row_number: int = Field(ge=1)
+    sheet: str | None = None
+    field: str | None = None
+    original_value: str | None = None
+    message: str
 
 
 class EvidenceItem(ContractModel):
