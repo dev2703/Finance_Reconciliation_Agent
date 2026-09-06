@@ -83,9 +83,10 @@ def _extract_tables_pdfplumber(content: bytes, page_number: int) -> list[dict[st
                 for table_idx, table in enumerate(detected_tables):
                     cells = []
                     
-                    # Extract cells with coordinates
-                    for row_idx, row in enumerate(table.cells):
-                        for col_idx, cell_bbox in enumerate(row):
+                    # Extract cells with coordinates. pdfplumber exposes rows
+                    # separately; table.cells is a flat list of bounding boxes.
+                    for row_idx, row in enumerate(table.rows):
+                        for col_idx, cell_bbox in enumerate(row.cells):
                             if cell_bbox is None:
                                 continue
                             

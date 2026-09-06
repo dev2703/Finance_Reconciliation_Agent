@@ -122,6 +122,36 @@ class ReconciliationStatus(StrEnum):
     EXCEPTION = "EXCEPTION"
 
 
+class MatchReasonCode(StrEnum):
+    EXACT_REFERENCE = "exact_reference"
+    EXACT_ID = "exact_id"
+    EXACT_AMOUNT = "exact_amount"
+    AMOUNT_DATE_WINDOW = "amount_date_window"
+    CURRENCY_MATCH = "currency_match"
+    CURRENCY_MISMATCH = "currency_mismatch"
+    KNOWN_FEE = "known_fee"
+    KNOWN_TIMING = "known_timing"
+    UNMATCHED = "unmatched"
+    DUPLICATE_CANDIDATE = "duplicate_candidate"
+
+
+class Allocation(ContractModel):
+    source_record_id: UUID
+    target_record_id: UUID
+    amount: Decimal = Field(gt=0)
+    currency: str = Field(min_length=3, max_length=3)
+
+
+class MatchResult(ContractModel):
+    source_record_ids: list[UUID] = Field(default_factory=list)
+    target_record_ids: list[UUID] = Field(default_factory=list)
+    status: ReconciliationStatus
+    confidence: Decimal = Field(default=Decimal(0), ge=0, le=1)
+    reason_codes: list[MatchReasonCode] = Field(default_factory=list)
+    evidence: list[EvidenceItem] = Field(default_factory=list)
+    allocations: list[Allocation] = Field(default_factory=list)
+
+
 class ReconciliationItem(ContractModel):
     id: UUID = Field(default_factory=uuid4)
     source_record_ids: list[UUID] = Field(min_length=1)
@@ -130,6 +160,7 @@ class ReconciliationItem(ContractModel):
     confidence: Decimal = Field(default=Decimal(0), ge=0, le=1)
     reason_codes: list[str] = Field(default_factory=list)
     evidence: list[EvidenceItem] = Field(default_factory=list)
+    allocations: list[Allocation] = Field(default_factory=list)
 
 
 class ExceptionCase(ContractModel):

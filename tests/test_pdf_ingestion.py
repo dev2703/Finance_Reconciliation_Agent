@@ -2,14 +2,10 @@ from __future__ import annotations
 
 from decimal import Decimal
 from io import BytesIO
+from uuid import uuid4
 
 import pytest
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.units import inch
-from reportlab.pdfgen import canvas
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib import colors
+import fitz
 
 from services.ingestion.pdf import (
     extract_pdf,
@@ -17,22 +13,13 @@ from services.ingestion.pdf import (
     is_repeated_header,
     is_subtotal_or_total,
 )
+from services.ingestion.worker import _extract_records_from_pdf
 
 
 def create_test_pdf_with_table():
     """Create a simple test PDF with a table containing financial data."""
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
-    story = []
-    
-    styles = getSampleStyleSheet()
-    
-    # Add title
-    title = Paragraph("Financial Summary", styles['Heading1'])
-    story.append(title)
-    story.append(Spacer(1, 0.3 * inch))
-    
-    # Create a table with financial data
+    document = fitz.open()
+    page = document.new_page()
     data = [
         ['Description', 'Amount', 'Date'],
         ['Invoice #1001', '$1,234.56', '2025-01-15'],
@@ -41,42 +28,27 @@ def create_test_pdf_with_table():
         ['Fee', '(25.50)', '2025-01-18'],
     ]
     
-    table = Table(data, colWidths=[2*inch, 1.5*inch, 1.5*inch])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 14),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-    ]))
-    
-    story.append(table)
-    doc.build(story)
-    buffer.seek(0)
-    return buffer.getvalue()
+    column_x = [50, 250, 370]
+    row_height = 30
+    for row_index, row in enumerate(data):
+        y0 = 50 + row_index * row_height
+        for column_index, value in enumerate(row):
+            x0 = column_x[column_index]
+            x1 = column_x[column_index + 1] if column_index < 2 else 520
+            page.draw_rect(fitz.Rect(x0, y0, x1, y0 + row_height), color=(0, 0, 0))
+            page.insert_text((x0 + 5, y0 + 20), value, fontsize=10)
+    return document.tobytes()
 
 
 def create_test_pdf_native_text():
     """Create a test PDF with native text content."""
-    buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=letter)
-    width, height = letter
-    
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(1*inch, height - 1*inch, "Bank Statement")
-    
-    c.setFont("Helvetica", 12)
-    c.drawString(1*inch, height - 1.5*inch, "Date Range: 2025-01-01 to 2025-01-31")
-    c.drawString(1*inch, height - 1.8*inch, "Account: 123456789")
-    
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(1*inch, height - 2.5*inch, "Transactions:")
-    
-    c.setFont("Helvetica", 10)
-    y = height - 2.8*inch
+    document = fitz.open()
+    page = document.new_page()
+    page.insert_text((72, 72), "Bank Statement", fontsize=16)
+    page.insert_text((72, 108), "Date Range: 2025-01-01 to 2025-01-31", fontsize=12)
+    page.insert_text((72, 130), "Account: 123456789", fontsize=12)
+    page.insert_text((72, 180), "Transactions:", fontsize=11)
+    y = 205
     transactions = [
         "01/05/2025  Deposit          $5,000.00",
         "01/10/2025  Wire Transfer    ($2,500.00)",
@@ -85,13 +57,9 @@ def create_test_pdf_native_text():
     ]
     
     for transaction in transactions:
-        c.drawString(1*inch, y, transaction)
-        y -= 0.25*inch
-    
-    c.showPage()
-    c.save()
-    buffer.seek(0)
-    return buffer.getvalue()
+        page.insert_text((72, y), transaction, fontsize=10)
+        y += 18
+    return document.tobytes()
 
 
 class TestPDFExtraction:
@@ -124,21 +92,11 @@ class TestPDFExtraction:
     
     def test_pdf_with_multiple_pages(self):
         """Test extraction from multi-page PDF."""
-        buffer = BytesIO()
-        c = canvas.Canvas(buffer, pagesize=letter)
-        
-        # Page 1
-        c.drawString(1*inch, 9*inch, "Page 1")
-        c.showPage()
-        
-        # Page 2
-        c.drawString(1*inch, 9*inch, "Page 2")
-        c.showPage()
-        
-        c.save()
-        buffer.seek(0)
-        
-        pages = extract_pdf(buffer.getvalue(), source_name="multi.pdf")
+        document = fitz.open()
+        document.new_page().insert_text((72, 72), "Page 1")
+        document.new_page().insert_text((72, 72), "Page 2")
+
+        pages = extract_pdf(document.tobytes(), source_name="multi.pdf")
         assert len(pages) == 2
         assert pages[0]["page_number"] == 1
         assert pages[1]["page_number"] == 2
@@ -176,6 +134,41 @@ class TestTableExtraction:
                         assert "row_index" in cell
                         assert "column_index" in cell
                         assert "confidence" in cell
+
+    def test_table_rows_convert_to_canonical_records_with_provenance(self):
+        pages = [
+            {
+                "page_number": 1,
+                "source_name": "bank.pdf",
+                "confidence": Decimal("0.95"),
+                "tables": [
+                    {
+                        "table_index": 0,
+                        "confidence": Decimal("0.90"),
+                        "cells": [
+                            {"row_index": 0, "column_index": 0, "text": "Date"},
+                            {"row_index": 0, "column_index": 1, "text": "Amount"},
+                            {"row_index": 0, "column_index": 2, "text": "Currency"},
+                            {"row_index": 0, "column_index": 3, "text": "Account"},
+                            {"row_index": 0, "column_index": 4, "text": "Type"},
+                            {"row_index": 1, "column_index": 0, "text": "2026-01-15"},
+                            {"row_index": 1, "column_index": 1, "text": "$125.00"},
+                            {"row_index": 1, "column_index": 2, "text": "USD"},
+                            {"row_index": 1, "column_index": 3, "text": "cash-1"},
+                            {"row_index": 1, "column_index": 4, "text": "deposit"},
+                        ],
+                    }
+                ],
+            }
+        ]
+        result = _extract_records_from_pdf(pages, "bank", uuid4())
+        assert result["errors"] == []
+        assert len(result["records"]) == 1
+        record = result["records"][0]
+        assert record.amount == Decimal("125.00")
+        assert record.provenance.extraction_method == "table_extraction"
+        assert record.provenance.page_number == 1
+        assert record.provenance.table_row_index == 1
 
 
 class TestFinancialNormalization:

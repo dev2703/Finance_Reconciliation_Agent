@@ -1,6 +1,7 @@
 """Canonical data contracts shared by API, services, and clients."""
 
 from .models import (
+    Allocation,
     Approval,
     AuditEvent,
     BankTransaction,
@@ -11,16 +12,20 @@ from .models import (
     IngestionStatus,
     Invoice,
     LedgerEntry,
+    MatchReasonCode,
+    MatchResult,
     ParseError,
     Payment,
     ProposedAction,
     Provenance,
     ReconciliationItem,
+    ReconciliationStatus,
     Settlement,
 )
 
 __all__ = [
     "Approval",
+    "Allocation",
     "AuditEvent",
     "BankTransaction",
     "Document",
@@ -29,11 +34,14 @@ __all__ = [
     "FinancialRecord",
     "Invoice",
     "LedgerEntry",
+    "MatchReasonCode",
+    "MatchResult",
     "Payment",
     "IngestionStatus",
     "ParseError",
     "Provenance",
     "ProposedAction",
     "ReconciliationItem",
+    "ReconciliationStatus",
     "Settlement",
 ]

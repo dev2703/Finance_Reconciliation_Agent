@@ -3,12 +3,19 @@ from __future__ import annotations
 import os
 import time
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from apps.api.storage import DocumentStore
 from packages.contracts import AuditEvent, IngestionStatus, ParseError
 from services.ingestion.pdf import extract_pdf, _extract_tables_pdfplumber
-from services.ingestion.tabular import parse_csv_result, parse_xlsx_result, preview_rows
+from services.ingestion.tabular import (
+    TabularParseError,
+    normalize_row,
+    parse_csv_result,
+    parse_xlsx_result,
+    preview_rows,
+)
 
 MAX_ROWS = int(os.getenv("MAX_INGESTION_ROWS", "10000"))
 MAX_SHEETS = int(os.getenv("MAX_INGESTION_SHEETS", "20"))
@@ -82,22 +89,22 @@ def process_document(store: DocumentStore, document_id: UUID) -> None:
             message="Extracting tables and converting to records",
         )
         # Process tables to extract financial records
-        records = _extract_records_from_pdf(
-            pdf_result, 
+        pdf_extraction = _extract_records_from_pdf(
+            pdf_result,
             record_type=stored.get("record_type", "BankTransaction"),
-            document_id=document_id
+            document_id=document_id,
         )
         records = [
             record.model_copy(update={"source_document_id": document_id})
-            for record in records.get("records", [])
+            for record in pdf_extraction["records"]
         ]
-        errors = [error.__dict__ for error in records.get("errors", [])]
-        status = IngestionStatus.PARSED  # For now, assume parsing succeeds even with low confidence
+        errors = [error.model_dump(mode="json") for error in pdf_extraction["errors"]]
+        status = IngestionStatus.FAILED if errors else IngestionStatus.PARSED
         store.update_result(
             document_id,
             status=status,
             records=[record.model_dump(mode="json") for record in records],
-            preview=pdf_result,
+            preview=_json_safe(pdf_result),
             errors=errors,
         )
         _audit(
@@ -176,6 +183,8 @@ def _audit(
 
 
 def _json_safe(value: object) -> object:
+    if isinstance(value, Decimal):
+        return str(value)
     if isinstance(value, (date, datetime)):
         return value.isoformat()
     if isinstance(value, list):
@@ -190,27 +199,62 @@ def _extract_records_from_pdf(
     record_type: str,
     document_id: UUID,
 ) -> dict[str, list]:
-    """Extract financial records from PDF pages and tables.
-    
-    Returns dict with 'records' and 'errors' lists.
-    For now, this is a pass-through that returns empty records.
-    Full table-to-record conversion is in phase 2.5 (extraction agent).
-    """
+    """Convert detected PDF table rows into canonical financial records."""
     records = []
-    errors = []
-    
-    # Future: Process tables to extract financial records
-    # For now, just mark that PDF was parsed successfully
+    errors: list[ParseError] = []
     for page in pages:
-        if page.get("confidence", 0) < PDF_CONFIDENCE_THRESHOLD:
-            # Low confidence page - could mark for human review
-            pass
-        
-        # Tables exist on this page
-        if page.get("tables"):
-            # Table extraction infrastructure is in place
-            # Actual record extraction will be done by extraction agent
-            pass
+        page_confidence = page.get("confidence", 0)
+        for table in page.get("tables", []):
+            rows: dict[int, list[dict]] = {}
+            for cell in table.get("cells", []):
+                rows.setdefault(cell["row_index"], []).append(cell)
+            if not rows:
+                continue
+            header_row_index = min(rows)
+            headers = {
+                cell["column_index"]: cell["text"]
+                for cell in rows[header_row_index]
+            }
+            for row_index, cells in sorted(rows.items()):
+                if row_index == header_row_index:
+                    continue
+                row = {
+                    headers[cell["column_index"]]: cell["text"]
+                    for cell in cells
+                    if cell["column_index"] in headers
+                }
+                source_row = page["page_number"] * 1000 + row_index + 1
+                try:
+                    record = normalize_row(
+                        row,
+                        record_type=record_type,
+                        source_name=page["source_name"],
+                        row_number=source_row,
+                    )
+                    provenance = record.provenance.model_copy(
+                        update={
+                            "extraction_method": "table_extraction",
+                            "parser_confidence": min(
+                                page_confidence,
+                                table.get("confidence", page_confidence),
+                            ),
+                            "page_number": page["page_number"],
+                            "table_index": table["table_index"],
+                            "table_row_index": row_index,
+                            "transformation_history": [
+                                *record.provenance.transformation_history,
+                                "reconstructed PDF table row",
+                            ],
+                        }
+                    )
+                    records.append(record.model_copy(update={"provenance": provenance}))
+                except (TabularParseError, ValueError) as exc:
+                    errors.append(
+                        ParseError(
+                            row_number=source_row,
+                            message=str(exc),
+                        )
+                    )
     
     return {"records": records, "errors": errors}
 
