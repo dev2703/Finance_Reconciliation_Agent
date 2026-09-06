@@ -1,0 +1,66 @@
+
+# ---------- Web API ----------
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.34,<1.0
+python-multipart>=0.0.20,<1.0
+pydantic>=2.10,<3.0
+pydantic-settings>=2.7,<3.0
+httpx>=0.28,<1.0
+orjson>=3.10,<4.0
+
+# ---------- Database ----------
+sqlalchemy>=2.0,<3.0
+psycopg[binary]>=3.2,<4.0
+alembic>=1.15,<2.0
+
+# ---------- Data ingestion / normalization ----------
+numpy>=2.1,<3.0
+pandas>=2.2,<3.0
+openpyxl>=3.1,<4.0
+python-dateutil>=2.9,<3.0
+rapidfuzz>=3.10,<4.0
+pyyaml>=6.0,<7.0
+
+# ---------- PDF / document ingestion ----------
+PyMuPDF>=1.25,<2.0
+pdfplumber>=0.11,<1.0
+pypdf>=5.1,<6.0
+pytesseract>=0.3.13,<1.0
+Pillow>=11.0,<12.0
+
+# ---------- Table detection / structure recognition ----------
+# Used for Microsoft Table Transformer (TATR) style PDF/image table parsing.
+torch>=2.5,<3.0
+torchvision>=0.20,<1.0
+transformers>=4.48,<5.0
+huggingface-hub>=0.27,<1.0
+safetensors>=0.5,<1.0
+
+# ---------- Graph / matching ----------
+networkx>=3.4,<4.0
+scipy>=1.14,<2.0
+
+# ---------- ML ----------
+scikit-learn>=1.6,<2.0
+xgboost>=2.1,<4.0
+joblib>=1.4,<2.0
+
+# ---------- Local embeddings / semantic matching ----------
+sentence-transformers>=3.3,<6.0
+
+# ---------- LLM / agent integration ----------
+# OpenAI-compatible client for TensorMux -> GLM-4-7B-Flash MoE 30B endpoint.
+openai>=1.60,<3.0
+
+# ---------- Serialization / utilities ----------
+tenacity>=9.0,<10.0
+tqdm>=4.67,<5.0
+
+# ---------- Testing ----------
+pytest>=8.3,<9.0
+pytest-asyncio>=0.25,<1.0
+pytest-cov>=6.0,<7.0
+
+# ---------- Quality / developer tooling ----------
+ruff>=0.9,<1.0
+mypy>=1.15,<2.0
