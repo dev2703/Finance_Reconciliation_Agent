@@ -1,0 +1,7 @@
+{
+  "scenario_id": "month-end-close",
+  "random_seed": 42,
+  "file_sha256_checksums": {
+    "expected_reconciliation.csv": "bd8332b322db1d0693a40e040550ceb104322fa7e3a59f5860b1f5103c5853fa"
+  }
+}

@@ -1,0 +1,2 @@
+scenario_id,result_scope,work_key,settlement_batch_id,internal_payment_id,processor_transaction_id,bank_entry_id,expected_outcome,expected_reason_code,expected_difference,explanation
+month-end-close,ORDER,ORDER-E1,BATCH-E,INT-E1,PROC-E1,BANK-E1,TIMING_DIFFERENCE,L1_TIMING_WINDOW,0.00,Clears after month-end window.

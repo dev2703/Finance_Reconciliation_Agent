@@ -1,0 +1,24 @@
+{
+  "case_id": "DOC_1",
+  "industry": "retail",
+  "complexity": "low",
+  "expected_journal_entries": [
+    {
+      "account": "1000",
+      "debit": "100.00",
+      "credit": "0",
+      "memo": "Cash"
+    },
+    {
+      "account": "4000",
+      "debit": "0",
+      "credit": "100.00",
+      "memo": "Revenue"
+    }
+  ],
+  "contradiction_labels": [],
+  "expected_fields": {
+    "total_amount": "100.00",
+    "currency": "USD"
+  }
+}

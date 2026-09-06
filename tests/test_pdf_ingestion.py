@@ -39,6 +39,20 @@ def create_test_pdf_with_table():
     return document.tobytes()
 
 
+def create_test_pdf_with_no_border_table():
+    document = fitz.open()
+    page = document.new_page()
+    rows = [
+        ("Date", "Description", "Amount"),
+        ("2026-01-01", "Invoice 1", "100.00"),
+        ("2026-01-02", "Invoice 2", "250.00"),
+    ]
+    for row_index, row in enumerate(rows):
+        for column_index, value in enumerate(row):
+            page.insert_text((50 + column_index * 170, 70 + row_index * 24), value)
+    return document.tobytes()
+
+
 def create_test_pdf_native_text():
     """Create a test PDF with native text content."""
     document = fitz.open()
@@ -134,40 +148,76 @@ class TestTableExtraction:
                         assert "column_index" in cell
                         assert "confidence" in cell
 
-    def test_table_rows_convert_to_canonical_records_with_provenance(self):
-        pages = [
-            {
-                "page_number": 1,
-                "source_name": "bank.pdf",
-                "confidence": Decimal("0.95"),
-                "tables": [
-                    {
-                        "table_index": 0,
-                        "confidence": Decimal("0.90"),
-                        "cells": [
-                            {"row_index": 0, "column_index": 0, "text": "Date"},
-                            {"row_index": 0, "column_index": 1, "text": "Amount"},
-                            {"row_index": 0, "column_index": 2, "text": "Currency"},
-                            {"row_index": 0, "column_index": 3, "text": "Account"},
-                            {"row_index": 0, "column_index": 4, "text": "Type"},
-                            {"row_index": 1, "column_index": 0, "text": "2026-01-15"},
-                            {"row_index": 1, "column_index": 1, "text": "$125.00"},
-                            {"row_index": 1, "column_index": 2, "text": "USD"},
-                            {"row_index": 1, "column_index": 3, "text": "cash-1"},
-                            {"row_index": 1, "column_index": 4, "text": "deposit"},
-                        ],
-                    }
-                ],
-            }
+    def test_no_border_table_uses_text_structure_strategy(self):
+        pages = extract_pdf(create_test_pdf_with_no_border_table(), source_name="no-border.pdf")
+        text_tables = [
+            table
+            for table in pages[0]["tables"]
+            if table["extraction_method"] == "pdfplumber_text"
         ]
-        result = _extract_records_from_pdf(pages, "bank", uuid4())
-        assert result["errors"] == []
-        assert len(result["records"]) == 1
-        record = result["records"][0]
-        assert record.amount == Decimal("125.00")
-        assert record.provenance.extraction_method == "table_extraction"
-        assert record.provenance.page_number == 1
-        assert record.provenance.table_row_index == 1
+        assert text_tables
+        assert {cell["column_index"] for cell in text_tables[0]["cells"]} >= {0, 1, 2}
+
+
+def test_ocr_confidence_controls_fallback(monkeypatch):
+    document = fitz.open()
+    document.new_page()
+    content = document.tobytes()
+    document.close()
+    monkeypatch.setattr(
+        "services.ingestion.pdf.pytesseract.image_to_data",
+        lambda *_args, **_kwargs: {
+            "text": ["Scanned", "statement"],
+            "conf": ["92", "88"],
+            "left": [20, 100],
+            "top": [20, 20],
+            "width": [60, 80],
+            "height": [20, 20],
+            "block_num": [1, 1],
+            "line_num": [1, 1],
+            "word_num": [1, 2],
+        },
+    )
+    page = extract_pdf(content, source_name="scan.pdf")[0]
+    assert page["extraction_method"] == "ocr"
+    assert page["ocr_confidence"] == Decimal("0.90")
+    assert page["fallback_required"] is False
+    assert page["words"][0]["x0"] == 10
+
+def test_table_rows_convert_to_canonical_records_with_provenance():
+    pages = [
+        {
+            "page_number": 1,
+            "source_name": "bank.pdf",
+            "confidence": Decimal("0.95"),
+            "tables": [
+                {
+                    "table_index": 0,
+                    "confidence": Decimal("0.90"),
+                    "cells": [
+                        {"row_index": 0, "column_index": 0, "text": "Date"},
+                        {"row_index": 0, "column_index": 1, "text": "Amount"},
+                        {"row_index": 0, "column_index": 2, "text": "Currency"},
+                        {"row_index": 0, "column_index": 3, "text": "Account"},
+                        {"row_index": 0, "column_index": 4, "text": "Type"},
+                        {"row_index": 1, "column_index": 0, "text": "2026-01-15"},
+                        {"row_index": 1, "column_index": 1, "text": "$125.00"},
+                        {"row_index": 1, "column_index": 2, "text": "USD"},
+                        {"row_index": 1, "column_index": 3, "text": "cash-1"},
+                        {"row_index": 1, "column_index": 4, "text": "deposit"},
+                    ],
+                }
+            ],
+        }
+    ]
+    result = _extract_records_from_pdf(pages, "bank", uuid4())
+    assert result["errors"] == []
+    assert len(result["records"]) == 1
+    record = result["records"][0]
+    assert record.amount == Decimal("125.00")
+    assert record.provenance.extraction_method == "table_extraction"
+    assert record.provenance.page_number == 1
+    assert record.provenance.table_row_index == 1
 
 
 class TestFinancialNormalization:

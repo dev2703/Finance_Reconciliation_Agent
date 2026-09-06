@@ -6,6 +6,8 @@ node_modules/
 .next/
 .env
 .data/
+evaluation/reports/out/
+evaluation/train_ml/data/
 *.tsbuildinfo
 !.env.example
 .vscode

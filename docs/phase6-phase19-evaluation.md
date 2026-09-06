@@ -1,22 +1,34 @@
-# Phase 6 and Phase 19 — Demo evaluation
+# Phase 6 evaluation harness
 
-Generate the deterministic 40-case demo pack and compare the included simple baseline with the
-expected candidate output in one command:
+## One-command fixture benchmarks
 
 ```bash
-python -m evaluation --demo-dir .data/demo --output-dir .data/evaluation
+python -m evaluation --suite all
 ```
 
-The command writes `cases.jsonl`, baseline and candidate prediction JSONL files, a seed manifest,
-`benchmark.json`, and `benchmark.md`. The seed defaults to `20260906` and can be overridden with
-`--seed`.
+Runs the offline ReconRiver, FinRCA, and FinBalance fixture packs under
+`evaluation/datasets/fixtures/`, compares baseline vs system prediction JSONL files, and writes:
 
-The pack contains exact matches, timing and fee differences, partial payments, split settlements,
-duplicates, wrong allocations, missing bank/ledger records, hard negatives, multi-hop cases, and
-messy PDF/table cases. Every case carries an expected outcome, evidence ID, exact string money, and
-stable entity grouping.
+- `evaluation/reports/out/benchmark_result.json`
+- `evaluation/reports/out/benchmark_report.md`
 
-The included candidate predictions are ground-truth acceptance fixtures, not a claim about current
-end-to-end system accuracy. Replace either prediction JSONL file with real system output to measure
-precision, recall, F1, root-cause/evidence/resolution quality, automation, financial exposure,
-latency, tokens, and cost through the same harness.
+Override paths with `--fixtures` and `--output`. Restrict suites with repeated `--suite` flags.
+
+## One-command custom demo pack (Phase 19)
+
+```bash
+python -m evaluation --demo-dir .data/demo --output .data/evaluation
+```
+
+Seeds the deterministic 40-case pack, scores baseline vs candidate predictions, and writes
+`benchmark.json` plus `benchmark.md`. Override the pack seed with `--seed`.
+
+## Metric coverage
+
+The shared metric engine reports precision, recall, F1, root-cause accuracy, evidence
+precision/recall, resolution accuracy, hard-negative false-positive rate, automation rate,
+false-positive/false-negative financial exposure, latency, LLM tokens, and estimated cost.
+
+Money fields stay on `Decimal`. Fixture and demo candidate predictions are acceptance fixtures,
+not a claim about live end-to-end system accuracy. Replace prediction JSONL files with real
+workflow exports to measure the current system.

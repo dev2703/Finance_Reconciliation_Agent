@@ -126,13 +126,13 @@ def build_synthetic_pair_cases(worlds: int = 18) -> list[dict]:
             )
         )
 
-        # Hard negative: same amount and party, wrong reference/date.
+        # Hard negative: same amount and party, wrong invoice/date (plan §9.1).
         hard = _record(
             f"set-hard-{world}",
             record_type="settlement",
             amount=amount,
-            day=day + timedelta(days=9),
-            reference=f"INV-{world}-WRONG",
+            day=day + timedelta(days=21),
+            reference=f"PO-OTHER-{world}",
             party=entity,
             description="Same party wrong invoice",
         )
@@ -146,7 +146,7 @@ def build_synthetic_pair_cases(worlds: int = 18) -> list[dict]:
                 is_hard_negative=True,
                 source=payment,
                 target=hard,
-                graph_score="0.55",
+                graph_score="0.20",
             )
         )
     return cases

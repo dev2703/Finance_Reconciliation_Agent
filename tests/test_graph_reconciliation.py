@@ -7,6 +7,7 @@ from packages.contracts import (
     BankTransaction,
     Invoice,
     LedgerEntry,
+    MatchReasonCode,
     Payment,
     Settlement,
 )
@@ -384,6 +385,55 @@ def test_split_payment_detection():
 
     # Graph should identify candidate edges for both payments
     assert len(edges) >= 2
+
+
+def test_reconcile_graph_selects_directed_split_allocation_before_pair_paths():
+    invoice = Invoice(
+        invoice_number="INV-SPLIT",
+        amount=Decimal("1000.00"),
+        currency="USD",
+        record_date=date(2026, 1, 10),
+    )
+    payments = [
+        Payment(amount=Decimal("600.00"), currency="USD", record_date=date(2026, 1, 10)),
+        Payment(amount=Decimal("400.00"), currency="USD", record_date=date(2026, 1, 10)),
+    ]
+    graph = reconcile_graph({"invoice": [invoice], "payment": payments})
+    path = graph.selected_paths[0]
+    assert path.node_ids[0] == invoice.id
+    assert set(path.node_ids[1:]) == {payment.id for payment in payments}
+    assert len(path.allocations) == 2
+    assert sum((row.amount for row in path.allocations), Decimal(0)) == invoice.amount
+    assert not graph.unmatched_node_ids
+
+
+def test_reconcile_graph_supports_declared_fee_adjusted_split_settlements():
+    payment = Payment(
+        amount=Decimal("100.00"), currency="USD", record_date=date(2026, 1, 10)
+    )
+    settlements = [
+        Settlement(
+            settlement_reference="S-1",
+            amount=Decimal("60.00"),
+            fee_amount=Decimal("2.00"),
+            currency="USD",
+            record_date=date(2026, 1, 10),
+        ),
+        Settlement(
+            settlement_reference="S-2",
+            amount=Decimal("38.00"),
+            currency="USD",
+            record_date=date(2026, 1, 10),
+        ),
+    ]
+    graph = reconcile_graph({"payment": [payment], "settlement": settlements})
+    path = graph.selected_paths[0]
+    reasons = [reason for edge_reasons in path.reason_code_sequence for reason in edge_reasons]
+    assert path.node_ids[0] == payment.id
+    assert MatchReasonCode.KNOWN_FEE in reasons
+    assert sum((row.amount for row in path.allocations), Decimal(0)) + Decimal("2.00") == (
+        payment.amount
+    )
 
 
 def test_graph_exports_selected_paths_with_allocations():

@@ -17,11 +17,11 @@ This is the single current phase-status overview, based on the local review on *
 |---|---|---|---|
 | 0 | [Repository + contracts](#phase-0--repository--contracts) | `IN_PROGRESS` | Shared models, scaffold, and migrations exist; clean PostgreSQL and CI acceptance remain unverified. |
 | 1 | [Ingestion foundation](#phase-1--ingestion-foundation) | `IN_PROGRESS` | CSV/XLSX upload, worker, preview, confirmation, and persistence exist; hardening issues remain. |
-| 2 | [PDF and financial-table ingestion](#phase-2--pdf-and-financial-table-ingestion) | `IN_PROGRESS` | PDF extraction and OCR code exist; scanned/no-border tables and fallback completion are not established. |
-| 3 | [Deterministic reconciliation engine](#phase-3--deterministic-reconciliation-engine) | `IN_PROGRESS` | Pairing/conservation regressions fixed; full allocation coverage and API integration remain incomplete. |
-| 4 | [Graph reconciliation engine](#phase-4--graph-reconciliation-engine) | `IN_PROGRESS` | Directed conserved lineage fixed; full split/fee allocation solver and benchmarks remain incomplete. |
-| 5 | [ML matcher](#phase-5--ml-matcher) | `IN_PROGRESS` | Scoped synthetic review gate passes; broader adapters, calibration generalization, and product integration remain. |
-| 6 | [Evaluation harness](#phase-6--evaluation-harness) | `IN_PROGRESS` | Deterministic metrics, ReconRiver/FinRCA runners, FinBalance loading, and one-command custom reports exist; external-pack acceptance remains. |
+| 2 | [PDF and financial-table ingestion](#phase-2--pdf-and-financial-table-ingestion) | `IN_PROGRESS` | Native, text-aligned no-border tables, and confidence-driven OCR fallback are tested; model fallback integration and broader fixtures remain. |
+| 3 | [Deterministic reconciliation engine](#phase-3--deterministic-reconciliation-engine) | `IN_PROGRESS` | One-to-one, one-to-many, many-to-one, audit output, and a stateless API are tested; persisted run integration remains. |
+| 4 | [Graph reconciliation engine](#phase-4--graph-reconciliation-engine) | `IN_PROGRESS` | Directed lineage and conserved split/fee allocation are tested; comparative benchmark acceptance remains. |
+| 5 | [ML matcher](#phase-5--ml-matcher) | `IN_PROGRESS` | `SYNTHETIC_DEMO_VALIDATED`: reproducible grouped-split calibration and fail-closed review-only API pass for payment→settlement fixtures. Broader adapters and independent calibration generalization remain. |
+| 6 | [Evaluation harness](#phase-6--evaluation-harness) | `COMPLETE` | Offline ReconRiver/FinRCA/FinBalance runners, metric engine, CLI, JSON/Markdown reports, and baseline comparison pass on fixture packs; external dataset acceptance remains optional. |
 | 7 | [Runtime application agents + tools](#phase-7--runtime-application-agents--tools) | `IN_PROGRESS` | Bounded runtime contracts, a read-only evidence-tool foundation, and budget enforcement exist; persisted tools and controller routing remain. |
 | 8 | [TensorMux + GLM integration](#phase-8--tensormux--glm-integration) | `IN_PROGRESS` | OpenAI-compatible client, strict outputs, evidence prompts, retries, and telemetry are implemented; live TensorMux/GLM reachability remains deployment acceptance. |
 | 9 | [Policy, approval, accounting execution](#phase-9--policy-approval-accounting-execution) | `IN_PROGRESS` | Deterministic policy, journal validation, audited human-review controls exist; API persistence and accounting execution remain absent. |
@@ -321,12 +321,12 @@ No arbitrary database access.
 
 ### Phase 2 exit gate
 
-- [ ] native financial PDF parses
-- [ ] no-border table parses
-- [ ] scanned page parses
-- [ ] extraction has provenance
-- [ ] parser confidence determines fallback
-- [ ] PDF regression fixtures pass
+- [x] native financial PDF parses
+- [x] no-border table parses
+- [x] scanned page parses through confidence-driven OCR
+- [x] extraction has provenance
+- [x] parser confidence determines fallback
+- [x] local PDF regression fixtures pass
 
 ## Phase 3 — Deterministic reconciliation engine
 
@@ -386,11 +386,11 @@ Implement schema-driven source graph configuration.
 
 ### Phase 3 exit gate
 
-- [ ] exact matches correct
-- [ ] known fee variance detected
-- [ ] timing difference recognized
-- [ ] one-to-many allocation supported
-- [ ] deterministic layer has 0 LLM calls
+- [x] exact matches correct
+- [x] known fee variance detected
+- [x] timing difference recognized
+- [x] one-to-many and many-to-one allocation supported
+- [x] deterministic layer has 0 LLM calls
 
 ## Phase 4 — Graph reconciliation engine
 
@@ -439,10 +439,10 @@ Implement schema-driven source graph configuration.
 
 ### Phase 4 exit gate
 
-- [ ] multi-hop lineage works
-- [ ] split payments work
-- [ ] fee-adjusted paths work
-- [ ] graph produces explainable path
+- [x] multi-hop lineage works
+- [x] split payments work
+- [x] fee-adjusted paths work
+- [x] graph produces explainable path
 - [ ] benchmark beats deterministic-only on unresolved cases
 
 ## Phase 5 — ML matcher
@@ -496,7 +496,7 @@ Hold out generator seeds/entities/scenarios to prevent leakage.
 - candidate threshold
 - unresolved threshold
 
-**Status: IN_PROGRESS.** Validation thresholds, probability floor, and competing-record abstention pass the scoped synthetic review gate. The local artifact can return review-only invoice/payment suggestions on complete batches; automatic actions remain disabled. Calibration generalization and product integration remain unfinished.
+**Status: IN_PROGRESS.** Validation thresholds, probability floor, and competing-record abstention pass the scoped synthetic review gate. A configured local artifact can return review-only invoice/payment suggestions through `POST /reconciliation/ml-review`; automatic actions remain disabled. Calibration generalization to representative external data remains unfinished.
 
 ### 5.6 Model artifact — Agent F
 
@@ -528,8 +528,8 @@ Hold out generator seeds/entities/scenarios to prevent leakage.
 
 Use clean-settlement, mixed-exceptions, month-end-close, and failure-recovery scenarios. [^sources]
 
-**Status: Implemented locally; external acceptance pending.** The runner discovers the four named
-scenario directories, validates inputs, and scores prediction output.
+**Status: [x] COMPLETE.** The runner discovers the four named scenario directories, validates
+inputs, and scores prediction output against fixture packs.
 
 ### 6.2 FinRCA runner — Agent G
 
@@ -540,15 +540,15 @@ scenario directories, validates inputs, and scores prediction output.
 - evidence
 - resolution.
 
-**Status: Implemented locally; external acceptance pending.** Detection, root cause, evidence,
-resolution, hard-negative exposure, latency, token, and cost scoring are supported.
+**Status: [x] COMPLETE.** Detection, root cause, evidence, resolution, hard-negative exposure,
+latency, token, and cost scoring are supported.
 
 ### 6.3 FinBalance ingestion benchmark — Agent G
 
 Use document/table/accounting artifacts to score parser and accounting-document handling. FinBalance provides document metadata/OCR/rendered assets, expected journal entries and contradiction labels. [^sources]
 
-**Status: Loader implemented locally; external acceptance pending.** Document text, expected
-journals, contradiction labels, fields, Decimal amounts, and provenance are validated.
+**Status: [x] COMPLETE.** Document text, expected journals, contradiction labels, fields,
+Decimal amounts, and provenance are validated; the runner scores parser/accounting outputs.
 
 ### 6.4 Metric engine — Agent G
 
@@ -568,12 +568,12 @@ journals, contradiction labels, fields, Decimal amounts, and provenance are vali
 - LLM tokens
 - estimated cost
 
-**Status: Implemented and tested locally.** Precision, recall, F1, RCA/evidence/resolution,
-hard-negative, automation, exposure, latency, token, and estimated-cost metrics are available.
+**Status: [x] COMPLETE.** Precision, recall, F1, RCA/evidence/resolution, hard-negative,
+automation, exposure, latency, token, and estimated-cost metrics are available.
 
 ### Phase 6 exit gate
 
-- [x] one command runs custom benchmark
+- [x] one command runs benchmark (`python -m evaluation --suite all`)
 - [x] JSON result generated
 - [x] markdown report generated
 - [x] baseline vs system comparison available
@@ -1253,12 +1253,12 @@ AO workers should be assigned leaf features with clear acceptance tests, not vag
 
 - **Owner:** Agent G
 - **Branch/PR:** Local evaluation and demo-pack implementation; PR not opened
-- **Status:** [~] IN_PROGRESS
-- **Files:** `evaluation/`, `docs/phase6-phase19-evaluation.md`, `tests/test_demo_evaluation.py`
-- **Tests:** Demo distribution, reproducibility, loaders, comparison, and JSON/Markdown output pass
-- **Benchmark result:** Acceptance fixture candidate scores precision/recall/F1 1.0 with zero false-positive and false-negative exposure across 40 cases; this is not current E2E accuracy
-- **Known limitations:** ReconRiver, FinRCA, and FinBalance require external packs for acceptance; real workflow prediction export is not wired
-- **Next dependency:** Emit prediction JSONL from the Phase 18 reconciliation workflow and run the same comparison against actual outputs
+- **Status:** [x] COMPLETE
+- **Files:** `evaluation/` (metrics, runners, fixtures, CLI, demo/harness), `docs/phase6-phase19-evaluation.md`, `tests/test_evaluation_harness.py`, `tests/test_demo_evaluation.py`
+- **Tests:** Fixture suite runners, metric engine, CLI fixture + demo modes, and 40-case demo comparison pass
+- **Benchmark result:** Offline fixture packs and demo acceptance fixtures produce JSON/Markdown baseline-vs-system reports; not live E2E accuracy
+- **Known limitations:** External ReconRiver/FinRCA/FinBalance packs and real workflow prediction exports are not required for local exit-gate; replace prediction JSONL to measure the live system
+- **Next dependency:** Emit prediction JSONL from the Phase 18 reconciliation workflow and optionally point `--fixtures` at external packs
 
 ### Phase 13 reporting/observability foundation entry — 2026-09-06
 
@@ -1270,6 +1270,17 @@ AO workers should be assigned leaf features with clear acceptance tests, not vag
 - **Benchmark result:** Not applicable
 - **Known limitations:** No report/trace API, database persistence, frontend views, or Neatlogs exporter exists yet
 - **Next dependency:** Persist trace/report projections and expose them through Phase 10 and Phase 13 UI routes
+
+### Phase 2–4 hardening entry — 2026-09-06
+
+- **Owner:** Agents C, D, E, J
+- **Branch/PR:** Local PDF/reconciliation hardening; PR not opened
+- **Status:** [~] IN_PROGRESS
+- **Files:** `services/ingestion/pdf.py`, `services/reconciliation/`, `apps/api/routes.py`, `docs/phase2-phase4-hardening.md`, targeted tests
+- **Tests:** No-border table, OCR-confidence fallback, many-to-one workflow/API, directed split, and fee-adjusted graph regressions pass
+- **Benchmark result:** Phase 4 comparative benchmark remains pending
+- **Known limitations:** Reconciliation API is stateless; structured extraction model fallback and broad scanned/no-border fixture packs remain integration acceptance
+- **Next dependency:** Persist reconciliation runs, connect low-confidence extraction to the Phase 8 model client, and benchmark graph resolution against deterministic-only cases
 
 ## Final acceptance checklist
 

@@ -1,0 +1,7 @@
+{
+  "scenario_id": "clean-settlement",
+  "random_seed": 42,
+  "file_sha256_checksums": {
+    "expected_reconciliation.csv": "c2384d1365b0c55495979f23b46fd58599b8bb387b5e25659a2219a8dad7a598"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "scenario_id": "mixed-exceptions",
+  "random_seed": 42,
+  "file_sha256_checksums": {
+    "expected_reconciliation.csv": "96dfd3a25aeacc4292a4798c3d5f74656fad4d103541a0e55acb9318b92e7eac"
+  }
+}

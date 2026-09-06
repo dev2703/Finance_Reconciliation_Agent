@@ -13,9 +13,8 @@ import heapq
 import math
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
-from datetime import date
 from decimal import Decimal
+from itertools import combinations
 from typing import Any
 from uuid import UUID
 
@@ -28,11 +27,17 @@ from packages.contracts import (
     GraphPath,
     MatchReasonCode,
 )
-from services.reconciliation.deterministic.engine import match_pair
-
 
 DEFAULT_DATE_WINDOW_DAYS = 3
 DEFAULT_MAX_HOP_DISTANCE = 5
+_TYPE_ORDER = {
+    "invoice": 0,
+    "payment": 1,
+    "processor": 2,
+    "settlement": 3,
+    "bank_transaction": 4,
+    "ledger_entry": 5,
+}
 
 
 def normalize_blocking_key(
@@ -124,7 +129,11 @@ def build_entity_nodes(
                 or getattr(record, "settlement_reference", None)
                 or getattr(record, "payment_reference", None),
                 amount_bucket=blocking_keys.get("amount_bucket"),
-                metadata={"blocking_keys": blocking_keys, "record_type": record_type},
+                metadata={
+                    "blocking_keys": blocking_keys,
+                    "record_type": record_type,
+                    "fee_amount": getattr(record, "fee_amount", Decimal(0)),
+                },
             )
             nodes[record.id] = node
 
@@ -212,16 +221,144 @@ def build_candidate_edges(
                 reason_codes.append(MatchReasonCode.CURRENCY_MATCH)
 
             if score > 0:
+                source_id, target_id = _directed_pair(source_node, target_node)
                 edges.append(
                     CandidateEdge(
-                        source_node_id=source_node.record_id,
-                        target_node_id=target_node.record_id,
+                        source_node_id=source_id,
+                        target_node_id=target_id,
                         score=score,
                         reason_codes=reason_codes,
                     )
                 )
 
     return edges
+
+
+def _directed_pair(left: EntityNode, right: EntityNode) -> tuple[UUID, UUID]:
+    left_rank = _TYPE_ORDER.get(left.record_type, len(_TYPE_ORDER))
+    right_rank = _TYPE_ORDER.get(right.record_type, len(_TYPE_ORDER))
+    if left_rank != right_rank:
+        return (
+            (left.record_id, right.record_id)
+            if left_rank < right_rank
+            else (right.record_id, left.record_id)
+        )
+    if str(left.record_id) < str(right.record_id):
+        return left.record_id, right.record_id
+    return right.record_id, left.record_id
+
+
+def find_directed_allocations(
+    nodes: Mapping[UUID, EntityNode],
+    edges: list[CandidateEdge],
+    *,
+    max_group_size: int = 4,
+) -> list[GraphPath]:
+    """Resolve directed one-to-many and many-to-one conserved groups, including fees."""
+    edge_index = {(edge.source_node_id, edge.target_node_id): edge for edge in edges}
+    used: set[UUID] = set()
+    paths: list[GraphPath] = []
+    ordered = sorted(
+        nodes.values(),
+        key=lambda node: (_TYPE_ORDER.get(node.record_type, 99), str(node.record_id)),
+    )
+
+    for source in ordered:
+        if source.record_id in used:
+            continue
+        outgoing = [
+            nodes[target_id]
+            for source_id, target_id in edge_index
+            if source_id == source.record_id and target_id not in used
+        ]
+        path = _allocation_group(source, outgoing, edge_index, max_group_size=max_group_size)
+        if path:
+            paths.append(path)
+            used.update(path.node_ids)
+
+    for target in ordered:
+        if target.record_id in used:
+            continue
+        incoming = [
+            nodes[source_id]
+            for source_id, target_id in edge_index
+            if target_id == target.record_id and source_id not in used
+        ]
+        path = _allocation_group(
+            target,
+            incoming,
+            edge_index,
+            max_group_size=max_group_size,
+            many_to_one=True,
+        )
+        if path:
+            paths.append(path)
+            used.update(path.node_ids)
+    return paths
+
+
+def _allocation_group(
+    anchor: EntityNode,
+    candidates: list[EntityNode],
+    edge_index: Mapping[tuple[UUID, UUID], CandidateEdge],
+    *,
+    max_group_size: int,
+    many_to_one: bool = False,
+) -> GraphPath | None:
+    candidates = sorted(candidates, key=lambda node: str(node.record_id))
+    for size in range(2, min(max_group_size, len(candidates)) + 1):
+        for group in combinations(candidates, size):
+            if len({node.record_type for node in group}) != 1:
+                continue
+            if any(node.currency != anchor.currency for node in group):
+                continue
+            group_total = sum((node.amount for node in group), Decimal(0))
+            fee = sum((_node_fee(node) for node in (anchor, *group)), Decimal(0))
+            difference = (
+                group_total - anchor.amount if many_to_one else anchor.amount - group_total
+            )
+            fee_adjusted = fee > 0 and difference == fee
+            if difference != 0 and not fee_adjusted:
+                continue
+            allocations = []
+            selected_edges = []
+            for member in group:
+                source_id, target_id = (
+                    (member.record_id, anchor.record_id)
+                    if many_to_one
+                    else (anchor.record_id, member.record_id)
+                )
+                edge = edge_index.get((source_id, target_id))
+                if edge is None:
+                    break
+                selected_edges.append(edge)
+                allocations.append(
+                    Allocation(
+                        source_record_id=source_id,
+                        target_record_id=target_id,
+                        amount=member.amount,
+                        currency=anchor.currency,
+                    )
+                )
+            else:
+                reason = MatchReasonCode.KNOWN_FEE if fee_adjusted else MatchReasonCode.EXACT_AMOUNT
+                return GraphPath(
+                    node_ids=(
+                        [*(node.record_id for node in group), anchor.record_id]
+                        if many_to_one
+                        else [anchor.record_id, *(node.record_id for node in group)]
+                    ),
+                    edge_scores=[edge.score for edge in selected_edges],
+                    reason_code_sequence=[[*edge.reason_codes, reason] for edge in selected_edges],
+                    total_confidence=Decimal("0.82") if fee_adjusted else Decimal("0.88"),
+                    allocations=allocations,
+                )
+    return None
+
+
+def _node_fee(node: EntityNode) -> Decimal:
+    value = node.metadata.get("fee_amount", Decimal(0))
+    return abs(value) if isinstance(value, Decimal) else abs(Decimal(str(value)))
 
 
 def find_graph_paths(
@@ -268,7 +405,7 @@ def find_graph_paths(
 
         # Priority queue: (negative_score, path_nodes, path_scores, path_reasons)
         pq: list[tuple[Decimal, list[UUID], list[Decimal], list[list[MatchReasonCode]]]] = [
-            (Decimal("-1"), [start_node_id], [], [])
+            (Decimal(-1), [start_node_id], [], [])
         ]
         visited: set[UUID] = set()
 
@@ -336,8 +473,21 @@ def reconcile_graph(
     candidate_edges = build_candidate_edges(
         nodes, date_window_days=date_window_days, allow_currency_mismatch=False
     )
-    paths = find_graph_paths(
-        nodes, candidate_edges, max_hop_distance=max_hop_distance, min_path_score=min_path_score
+    allocation_paths = find_directed_allocations(nodes, candidate_edges)
+    allocated_ids = {node_id for path in allocation_paths for node_id in path.node_ids}
+    remaining_nodes = {
+        node_id: node for node_id, node in nodes.items() if node_id not in allocated_ids
+    }
+    remaining_edges = [
+        edge
+        for edge in candidate_edges
+        if edge.source_node_id in remaining_nodes and edge.target_node_id in remaining_nodes
+    ]
+    paths = allocation_paths + find_graph_paths(
+        remaining_nodes,
+        remaining_edges,
+        max_hop_distance=max_hop_distance,
+        min_path_score=min_path_score,
     )
 
     # Identify unmatched nodes

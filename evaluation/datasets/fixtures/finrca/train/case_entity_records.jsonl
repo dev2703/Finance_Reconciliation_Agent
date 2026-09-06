@@ -1,0 +1,4 @@
+{"case_id": "RCA_1", "table": "payments", "record": {"payment_id": "PAY-1", "amount": "1234.56"}}
+{"case_id": "RCA_1", "table": "bank_transactions", "record": {"bank_transaction_id": "BANK-1", "amount": "1230.00"}}
+{"case_id": "RCA_2", "table": "payments", "record": {"payment_id": "PAY-2", "amount": "88.00"}}
+{"case_id": "RCA_2", "table": "bank_transactions", "record": {"bank_transaction_id": "BANK-2", "amount": "88.00"}}

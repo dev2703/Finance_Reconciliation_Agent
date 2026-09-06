@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+from evaluation.cli import main
 from evaluation.demo import CASE_COUNTS, build_demo_cases, seed_demo_data
 from evaluation.harness import run_demo_benchmark
 from services.ml.datasets import load_custom_benchmark
@@ -34,3 +35,12 @@ def test_one_command_inputs_generate_json_and_markdown_comparison(tmp_path):
     report = json.loads((tmp_path / "reports" / "benchmark.json").read_text())
     assert report["system"]["suites"][0]["case_count"] == 40
     assert "| System |" in (tmp_path / "reports" / "benchmark.md").read_text()
+
+
+def test_cli_demo_dir_seeds_and_writes_reports(tmp_path):
+    demo_dir = tmp_path / "demo"
+    output_dir = tmp_path / "out"
+    assert main(["--demo-dir", str(demo_dir), "--output", str(output_dir)]) == 0
+    assert (demo_dir / "cases.jsonl").exists()
+    assert (output_dir / "benchmark.json").exists()
+    assert (output_dir / "benchmark.md").exists()

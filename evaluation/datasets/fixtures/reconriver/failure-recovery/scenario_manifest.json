@@ -1,0 +1,7 @@
+{
+  "scenario_id": "failure-recovery",
+  "random_seed": 42,
+  "file_sha256_checksums": {
+    "expected_reconciliation.csv": "a0010a22c336cd1029547ffcc6d603d7aacdbe2d449a2855ef573a733b16e0ed"
+  }
+}

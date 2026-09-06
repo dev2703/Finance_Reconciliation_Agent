@@ -139,6 +139,12 @@ def reconcile_records(
             used_targets.update(selected.target_record_ids)
             continue
 
+        # Allocation passes run after stable one-to-one assignment so a source is
+        # not prematurely emitted as unmatched before a many-to-one group exists.
+
+    for source in source_records:
+        if source.id in matched_sources:
+            continue
         allocation = allocate_one_to_many(
             source,
             [target for target in target_records if target.id not in used_targets],
@@ -148,8 +154,23 @@ def reconcile_records(
             results.append(allocation)
             matched_sources.add(source.id)
             used_targets.update(allocation.target_record_ids)
-            continue
 
+    for target in target_records:
+        if target.id in used_targets:
+            continue
+        allocation = allocate_many_to_one(
+            [source for source in source_records if source.id not in matched_sources],
+            target,
+            max_group_size=max_allocation_group_size,
+        )
+        if allocation is not None:
+            results.append(allocation)
+            matched_sources.update(allocation.source_record_ids)
+            used_targets.add(target.id)
+
+    for source in source_records:
+        if source.id in matched_sources:
+            continue
         results.append(
             MatchResult(
                 source_record_ids=[source.id],

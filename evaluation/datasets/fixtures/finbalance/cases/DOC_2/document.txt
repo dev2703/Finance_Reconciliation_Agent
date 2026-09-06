@@ -1,0 +1,2 @@
+Trial balance disagrees with balance sheet.
+AR 50.00 Revenue 50.00

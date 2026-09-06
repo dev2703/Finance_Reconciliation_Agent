@@ -1,0 +1,2 @@
+scenario_id,result_scope,work_key,settlement_batch_id,internal_payment_id,processor_transaction_id,bank_entry_id,expected_outcome,expected_reason_code,expected_difference,explanation
+failure-recovery,ORDER,ORDER-F1,,INT-F1,PROC-F1,,MISSING_BANK,L2_MISSING_BANK,250.00,Bank item missing after restart.

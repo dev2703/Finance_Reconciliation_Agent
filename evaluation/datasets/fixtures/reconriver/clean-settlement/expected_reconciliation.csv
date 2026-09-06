@@ -1,0 +1,2 @@
+scenario_id,result_scope,work_key,settlement_batch_id,internal_payment_id,processor_transaction_id,bank_entry_id,expected_outcome,expected_reason_code,expected_difference,explanation
+clean-settlement,ORDER,ORDER-C1,BATCH-1,INT-C1,PROC-C1,BANK-C1,MATCHED,L0_EXACT,0.00,Clean settlement path.

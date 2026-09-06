@@ -7,18 +7,38 @@ import zipfile
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from io import BytesIO
+from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from pydantic import Field
 
-from packages.contracts import AuditEvent, Document, IngestionStatus, Invoice
+from packages.contracts import AuditEvent, Document, FinancialRecord, IngestionStatus, Invoice
+from packages.contracts.models import ContractModel
+from services.ml.contracts import Candidate
+from services.ml.model import rank_candidates
+from services.reconciliation.deterministic import reconcile_records
+from services.reconciliation.deterministic.engine import audit_events_for_results
 
 from .storage import DocumentStore
 
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
 
 
-def create_router(store: DocumentStore) -> APIRouter:
+class ReconciliationRequest(ContractModel):
+    sources: list[FinancialRecord] = Field(min_length=1, max_length=10_000)
+    targets: list[FinancialRecord] = Field(min_length=1, max_length=10_000)
+    date_window_days: int = Field(default=3, ge=0, le=365)
+    max_allocation_group_size: int = Field(default=4, ge=2, le=10)
+
+
+class MLReviewRequest(ContractModel):
+    """A complete candidate batch for conflict-aware, review-only ranking."""
+
+    candidates: list[Candidate] = Field(min_length=1, max_length=1_000)
+
+
+def create_router(store: DocumentStore, ml_model_directory: Path | None = None) -> APIRouter:
     router = APIRouter()
 
     def audit(document_id: UUID, event_type: str, details: dict[str, object]) -> None:
@@ -51,6 +71,40 @@ def create_router(store: DocumentStore) -> APIRouter:
             vendor_id="vendor-42",
             tax_amount=Decimal("100.00"),
         )
+
+    @router.post("/reconciliation/match")
+    def reconcile(request: ReconciliationRequest) -> dict[str, object]:
+        results = reconcile_records(
+            request.sources,
+            request.targets,
+            date_window_days=request.date_window_days,
+            max_allocation_group_size=request.max_allocation_group_size,
+        )
+        events = audit_events_for_results(results, actor="reconciliation_api")
+        return {
+            "results": [result.model_dump(mode="json") for result in results],
+            "audit_events": [event.model_dump(mode="json") for event in events],
+        }
+
+    @router.post("/reconciliation/ml-review")
+    def ml_review(request: MLReviewRequest) -> dict[str, object]:
+        """Return bounded ML review suggestions without mutating any record."""
+        if ml_model_directory is None:
+            raise HTTPException(
+                status_code=503,
+                detail="ML review is not configured; set ML_MODEL_DIRECTORY",
+            )
+        try:
+            suggestions = rank_candidates(ml_model_directory, request.candidates)
+        except (FileNotFoundError, KeyError, OSError, ValueError) as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="ML review artifact is unavailable or incompatible",
+            ) from exc
+        # Defense in depth: this endpoint must remain incapable of automation.
+        if any(item["automatic_action_eligible"] for item in suggestions):
+            raise HTTPException(status_code=503, detail="ML review policy violation")
+        return {"suggestions": suggestions, "mode": "REVIEW_ONLY"}
 
     @router.post("/documents/upload")
     async def upload_document(
@@ -210,4 +264,3 @@ def _response(
     if duplicate:
         response["duplicate"] = True
     return response
-

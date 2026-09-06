@@ -119,6 +119,17 @@ def test_many_to_one_allocation_conserves_decimal_amount():
     assert set(result.source_record_ids) == {source.id for source in sources}
 
 
+def test_reconcile_records_applies_many_to_one_before_emitting_unmatched():
+    sources = [bank("40.00"), bank("60.00")]
+    target = ledger("100.00")
+    results = reconcile_records(sources, [target])
+    assert len(results) == 1
+    assert results[0].status == ReconciliationStatus.MATCHED
+    assert set(results[0].source_record_ids) == {source.id for source in sources}
+    assert results[0].target_record_ids == [target.id]
+    assert sum((row.amount for row in results[0].allocations), Decimal(0)) == target.amount
+
+
 def test_reconcile_records_retains_unmatched_records_and_is_deterministic():
     source = bank("100.00", reference="REF-1")
     target = ledger("100.00")

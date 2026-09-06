@@ -22,11 +22,11 @@ from .pipeline import train_ml_pipeline, write_metrics_report
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dataset", type=Path, required=True, help="Custom pair JSONL path")
+    parser.add_argument("--dataset", type=Path, default=None, help="Custom pair JSONL path")
     parser.add_argument(
         "--artifact-dir",
         type=Path,
-        required=True,
+        default=None,
         help="Directory for model.joblib and model.json",
     )
     parser.add_argument("--report", type=Path, default=None, help="Optional metrics JSON path")
@@ -38,6 +38,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Create --dataset as the bundled synthetic fixture before training",
     )
     parser.add_argument("--synthetic-worlds", type=int, default=18)
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Run the deterministic synthetic Phase 5 demo under .data/phase5-demo",
+    )
     parser.add_argument("--review-max-fp-rate", type=float, default=0.25)
     parser.add_argument("--review-max-fp-exposure", default="500")
     return parser
@@ -45,6 +50,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.demo:
+        if args.dataset is None:
+            args.dataset = Path(".data/phase5-demo/synthetic_pairs.jsonl")
+        if args.artifact_dir is None:
+            args.artifact_dir = Path(".data/phase5-demo/artifact")
+        if args.report is None:
+            args.report = Path(".data/phase5-demo/metrics.json")
+        args.write_synthetic = True
+    if args.dataset is None or args.artifact_dir is None:
+        build_parser().error("--dataset and --artifact-dir are required unless --demo is used")
     if args.write_synthetic:
         write_synthetic_pairs(args.dataset, worlds=args.synthetic_worlds)
     result = train_ml_pipeline(

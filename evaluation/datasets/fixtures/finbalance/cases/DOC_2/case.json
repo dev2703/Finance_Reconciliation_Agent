@@ -1,0 +1,26 @@
+{
+  "case_id": "DOC_2",
+  "industry": "saas",
+  "complexity": "medium",
+  "expected_journal_entries": [
+    {
+      "account": "1100",
+      "debit": "50.00",
+      "credit": "0",
+      "memo": "AR"
+    },
+    {
+      "account": "4000",
+      "debit": "0",
+      "credit": "50.00",
+      "memo": "Revenue"
+    }
+  ],
+  "contradiction_labels": [
+    "TB_NE_BS"
+  ],
+  "expected_fields": {
+    "total_amount": "50.00",
+    "currency": "USD"
+  }
+}

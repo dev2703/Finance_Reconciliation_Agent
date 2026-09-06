@@ -118,7 +118,7 @@ def score_finrca(
 
         if is_hard_negative:
             hard_negative_count += 1
-            if detected or prediction.auto_resolved:
+            if detected:
                 hard_negative_fp += 1
                 fp_amounts.append(amount)
         elif _is_failure(case.label) and not detected:

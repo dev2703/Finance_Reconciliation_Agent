@@ -6,6 +6,7 @@ from openpyxl import Workbook
 
 from apps.api.app import create_app
 from apps.api.main import app
+from evaluation.train_ml import train_ml_pipeline, write_synthetic_pairs
 from services.ingestion.worker import run_once
 
 
@@ -42,6 +43,74 @@ def test_dashboard_metrics_are_available_before_reconciliation(tmp_path) -> None
         "pending_reviews": 0,
         "automation_rate": 0,
     }
+
+
+def test_reconciliation_api_supports_many_to_one_and_returns_audit_events(tmp_path) -> None:
+    client = TestClient(create_app(str(tmp_path / "reconciliation.sqlite3")))
+    source = {
+        "amount": "40.00",
+        "currency": "USD",
+        "record_date": "2026-01-10",
+    }
+    response = client.post(
+        "/reconciliation/match",
+        json={
+            "sources": [source, {**source, "amount": "60.00"}],
+            "targets": [{**source, "amount": "100.00"}],
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["results"]) == 1
+    assert payload["results"][0]["status"] == "MATCHED"
+    assert len(payload["results"][0]["source_record_ids"]) == 2
+    assert payload["audit_events"][0]["actor"] == "reconciliation_api"
+
+
+def test_ml_review_api_is_fail_closed_and_returns_review_only_suggestions(tmp_path) -> None:
+    unconfigured = TestClient(create_app(str(tmp_path / "unconfigured.sqlite3")))
+    candidate = {
+        "id": "candidate-1",
+        "sources": [
+            {
+                "id": "payment-1",
+                "record_type": "payment",
+                "amount": "100.00",
+                "currency": "USD",
+                "record_date": "2026-01-01",
+                "reference": "INV-1",
+                "party": "vendor-1",
+            }
+        ],
+        "targets": [
+            {
+                "id": "settlement-1",
+                "record_type": "settlement",
+                "amount": "100.00",
+                "currency": "USD",
+                "record_date": "2026-01-01",
+                "reference": "INV-1",
+                "party": "vendor-1",
+            }
+        ],
+        "graph_score": "0.95",
+    }
+    unavailable = unconfigured.post("/reconciliation/ml-review", json={"candidates": [candidate]})
+    assert unavailable.status_code == 503
+
+    dataset = write_synthetic_pairs(tmp_path / "pairs.jsonl", worlds=18)
+    artifact_dir = tmp_path / "phase5-artifact"
+    train_ml_pipeline(dataset, artifact_dir, seed=13)
+    client = TestClient(
+        create_app(str(tmp_path / "configured.sqlite3"), ml_model_directory=artifact_dir)
+    )
+    response = client.post("/reconciliation/ml-review", json={"candidates": [candidate]})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["mode"] == "REVIEW_ONLY"
+    assert payload["suggestions"][0]["automatic_action_eligible"] is False
+    assert payload["suggestions"][0]["suggestion"] in {"REVIEW", "UNRESOLVED"}
 
 
 def test_csv_upload_returns_normalized_records_and_preview(tmp_path) -> None:

@@ -46,12 +46,17 @@ def calibrate_held_out(
     auto_match_constraint: ThresholdConstraint,
     review_constraint: ThresholdConstraint,
     seed: int,
+    review_prefer_precision: bool = False,
 ) -> CalibrationResult:
     """Fit Platt scaling on held-out rows and choose deterministic risk gates.
 
     ``amounts`` represents financial exposure per candidate and is converted through
     ``str`` so accounting values never pass through binary floating-point arithmetic.
     The caller is responsible for supplying a group-held-out calibration set.
+
+    Auto-match always uses maximum-coverage selection under its constraint. Review
+    defaults to the same coverage-oriented gate; set ``review_prefer_precision`` to
+    choose the highest feasible review threshold instead.
     """
     labels_array = np.asarray(labels, dtype=int)
     if labels_array.ndim != 1 or len(labels_array) < 2:
@@ -80,6 +85,7 @@ def calibrate_held_out(
         review_constraint,
         lower_bound=None,
         upper_bound=auto_threshold,
+        prefer_precision=review_prefer_precision,
     )
     unresolved_threshold = _unresolved_boundary(calibrated, review_threshold)
     thresholds = {
@@ -139,9 +145,10 @@ def _select_threshold(
     *,
     lower_bound: float | None,
     upper_bound: float | None = None,
+    prefer_precision: bool = False,
 ) -> float | None:
-    # Ascending candidates make the first passing threshold the maximum-coverage gate.
-    candidates = sorted({float(value) for value in probabilities}, reverse=False)
+    # Ascending → maximum coverage; descending → highest feasible precision gate.
+    candidates = sorted({float(value) for value in probabilities}, reverse=prefer_precision)
     for threshold in candidates:
         if lower_bound is not None and threshold < lower_bound:
             continue

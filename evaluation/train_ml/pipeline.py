@@ -20,7 +20,7 @@ from services.ml.datasets import load_custom_benchmark
 from services.ml.datasets.examples import training_examples_from_cases
 from services.ml.features import FEATURE_VERSION, feature_vector, totals
 from services.ml.selection import REVIEW_POLICY
-from services.ml.training import BaselineResult, TrainingExample, train_baselines
+from services.ml.training import TrainingExample, train_baselines
 
 
 @dataclass(frozen=True)
@@ -212,6 +212,7 @@ def train_ml_pipeline(
         auto_match_constraint=auto_match_constraint,
         review_constraint=review_constraint,
         seed=seed,
+        review_prefer_precision=True,
     )
 
     relationships = sorted(
@@ -239,17 +240,19 @@ def train_ml_pipeline(
             "Calibration did not generalize to held-out worlds under the configured constraints"
         )
 
-    metrics = {
-        "best_model_name": baselines.best_model_name,
-        "feature_version": FEATURE_VERSION,
-        "validation": {
-            name: asdict(value) for name, value in baselines.validation_metrics.items()
-        },
-        "test": {name: asdict(value) for name, value in baselines.test_metrics.items()},
-        "calibration": dict(calibration.metrics),
-        "generalization": asdict(generalization),
-        "review_policy": dict(REVIEW_POLICY),
-    }
+    metrics = _json_safe(
+        {
+            "best_model_name": baselines.best_model_name,
+            "feature_version": FEATURE_VERSION,
+            "validation": {
+                name: asdict(value) for name, value in baselines.validation_metrics.items()
+            },
+            "test": {name: asdict(value) for name, value in baselines.test_metrics.items()},
+            "calibration": dict(calibration.metrics),
+            "generalization": asdict(generalization),
+            "review_policy": dict(REVIEW_POLICY),
+        }
+    )
     save_model_artifact(
         artifact_directory,
         estimator=estimator,
@@ -270,24 +273,43 @@ def train_ml_pipeline(
         thresholds=dict(calibration.thresholds),
         validation_metrics=metrics["validation"],
         test_metrics=metrics["test"],
-        calibration_metrics=dict(calibration.metrics),
+        calibration_metrics=metrics["calibration"],
         generalization=generalization,
         review_gate_passed=review_gate_passed,
     )
 
 
+def _json_safe(value: Any) -> Any:
+    """Convert numpy scalars and nested structures into JSON-native values."""
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, (int, float, str)):
+        return value
+    if hasattr(value, "item"):
+        return _json_safe(value.item())
+    raise TypeError(f"Unsupported metrics type: {type(value)!r}")
+
+
 def write_metrics_report(result: TrainMlResult, path: str | Path) -> None:
     path = Path(path)
-    payload = {
-        "artifact_directory": str(result.artifact_directory),
-        "model_version": result.model_version,
-        "best_model_name": result.best_model_name,
-        "training_dataset_hash": result.training_dataset_hash,
-        "thresholds": result.thresholds,
-        "validation_metrics": result.validation_metrics,
-        "test_metrics": result.test_metrics,
-        "calibration_metrics": result.calibration_metrics,
-        "generalization": asdict(result.generalization),
-        "review_gate_passed": result.review_gate_passed,
-    }
+    payload = _json_safe(
+        {
+            "artifact_directory": str(result.artifact_directory),
+            "model_version": result.model_version,
+            "best_model_name": result.best_model_name,
+            "training_dataset_hash": result.training_dataset_hash,
+            "thresholds": result.thresholds,
+            "validation_metrics": result.validation_metrics,
+            "test_metrics": result.test_metrics,
+            "calibration_metrics": result.calibration_metrics,
+            "generalization": asdict(result.generalization),
+            "review_gate_passed": result.review_gate_passed,
+        }
+    )
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")

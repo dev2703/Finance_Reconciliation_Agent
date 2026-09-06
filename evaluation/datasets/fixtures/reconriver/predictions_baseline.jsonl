@@ -1,0 +1,5 @@
+{"case_id": "clean-settlement:ORDER:ORDER-C1", "predicted_label": "MATCHED", "detected_exception": false, "auto_resolved": true, "amount": "0.00", "latency_ms": "5", "llm_tokens": 0, "estimated_cost": "0"}
+{"case_id": "mixed-exceptions:ORDER:ORDER-M1", "predicted_label": "MATCHED", "detected_exception": false, "auto_resolved": true, "amount": "0.37", "latency_ms": "8", "llm_tokens": 0, "estimated_cost": "0"}
+{"case_id": "mixed-exceptions:ORDER:ORDER-M2", "predicted_label": "HARD_NEGATIVE", "detected_exception": false, "auto_resolved": false, "amount": "0.00", "latency_ms": "4", "llm_tokens": 0, "estimated_cost": "0"}
+{"case_id": "month-end-close:ORDER:ORDER-E1", "predicted_label": "MATCHED", "detected_exception": false, "auto_resolved": true, "amount": "0.00", "latency_ms": "6", "llm_tokens": 0, "estimated_cost": "0"}
+{"case_id": "failure-recovery:ORDER:ORDER-F1", "predicted_label": "MATCHED", "detected_exception": false, "auto_resolved": true, "amount": "250.00", "latency_ms": "9", "llm_tokens": 0, "estimated_cost": "0"}

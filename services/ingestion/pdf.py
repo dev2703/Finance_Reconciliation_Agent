@@ -10,6 +10,8 @@ import pdfplumber
 import pytesseract
 from PIL import Image
 
+OCR_FALLBACK_THRESHOLD = Decimal("0.80")
+
 
 def extract_pdf(content: bytes, *, source_name: str) -> list[dict[str, Any]]:
     """Extract native PDF page text, tables, and word coordinates for later parsing.
@@ -39,7 +41,8 @@ def extract_pdf(content: bytes, *, source_name: str) -> list[dict[str, Any]]:
             ]
             
             text = page.get_text("text").strip()
-            has_native = bool(words) and len(text) > 10
+            confidence = _native_text_confidence(text, words)
+            has_native = confidence >= OCR_FALLBACK_THRESHOLD
             
             # Try to extract tables
             page_dict = {
@@ -51,13 +54,15 @@ def extract_pdf(content: bytes, *, source_name: str) -> list[dict[str, Any]]:
                 "source_name": source_name,
                 "extraction_method": "native_text",
                 "has_native_text": has_native,
-                "confidence": Decimal("1.0") if has_native else Decimal("0.0"),
+                "confidence": confidence,
+                "fallback_required": confidence < OCR_FALLBACK_THRESHOLD,
             }
             
             # Extract tables using pdfplumber
             tables = _extract_tables_pdfplumber(content, page_number)
+            page_dict["tables"] = tables
             if tables:
-                page_dict["tables"] = tables
+                page_dict["table_confidence"] = max(table["confidence"] for table in tables)
             
             pages.append(page_dict)
     
@@ -65,6 +70,17 @@ def extract_pdf(content: bytes, *, source_name: str) -> list[dict[str, Any]]:
     pages = _apply_ocr_fallback(content, pages)
     
     return pages
+
+
+def _native_text_confidence(text: str, words: list[dict[str, Any]]) -> Decimal:
+    """Estimate whether native extraction is sufficient to avoid OCR."""
+    if not text or not words:
+        return Decimal(0)
+    if len(words) >= 3 and len(text) >= 20:
+        return Decimal("0.85")
+    word_score = min(Decimal(len(words)) / Decimal(20), Decimal(1))
+    text_score = min(Decimal(len(text)) / Decimal(200), Decimal(1))
+    return ((word_score + text_score) / Decimal(2)).quantize(Decimal("0.01"))
 
 
 def _extract_tables_pdfplumber(content: bytes, page_number: int) -> list[dict[str, Any]]:
@@ -79,9 +95,23 @@ def _extract_tables_pdfplumber(content: bytes, page_number: int) -> list[dict[st
             if page_number <= len(pdf.pages):
                 page = pdf.pages[page_number - 1]
                 detected_tables = page.find_tables()
+                strategy = "lines"
+                if not detected_tables:
+                    detected_tables = page.find_tables(
+                        table_settings={
+                            "vertical_strategy": "text",
+                            "horizontal_strategy": "text",
+                            "min_words_vertical": 2,
+                            "min_words_horizontal": 1,
+                            "intersection_tolerance": 5,
+                            "text_tolerance": 3,
+                        }
+                    )
+                    strategy = "text"
                 
                 for table_idx, table in enumerate(detected_tables):
                     cells = []
+                    confidence = Decimal("0.95") if strategy == "lines" else Decimal("0.82")
                     
                     # Extract cells with coordinates. pdfplumber exposes rows
                     # separately; table.cells is a flat list of bounding boxes.
@@ -107,7 +137,7 @@ def _extract_tables_pdfplumber(content: bytes, page_number: int) -> list[dict[st
                                 },
                                 "text": cell_text.strip(),
                                 "cell_type": "header" if row_idx == 0 else "data",
-                                "confidence": Decimal("0.95"),
+                                "confidence": confidence,
                             })
                     
                     if cells:
@@ -115,8 +145,8 @@ def _extract_tables_pdfplumber(content: bytes, page_number: int) -> list[dict[st
                             "table_index": table_idx,
                             "page": page_number,
                             "cells": cells,
-                            "extraction_method": "pdfplumber",
-                            "confidence": Decimal("0.95"),
+                            "extraction_method": f"pdfplumber_{strategy}",
+                            "confidence": confidence,
                         })
     except Exception:
         # pdfplumber extraction failed; will fall back to OCR
@@ -139,30 +169,71 @@ def _apply_ocr_fallback(content: bytes, pages: list[dict[str, Any]]) -> list[dic
                 result.append(page_dict)
                 continue
             
-            # Only apply OCR if native text is weak (< 20 words or very short)
-            word_count = len(page_dict.get("words", []))
-            text_length = len(page_dict.get("text", ""))
-            
-            if word_count < 5 or text_length < 50:
+            if page_dict["confidence"] < OCR_FALLBACK_THRESHOLD:
                 try:
                     # Render page to image and run OCR
                     page = document[page_num]
                     pix = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
                     img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                     
-                    ocr_text = pytesseract.image_to_string(img)
-                    if ocr_text.strip():
-                        page_dict["text"] = ocr_text.strip()
+                    ocr = pytesseract.image_to_data(
+                        img, output_type=pytesseract.Output.DICT
+                    )
+                    ocr_words, ocr_confidence = _ocr_words(ocr, scale=2)
+                    ocr_text = " ".join(word["text"] for word in ocr_words)
+                    if ocr_text and ocr_confidence > page_dict["confidence"]:
+                        page_dict["text"] = ocr_text
+                        page_dict["words"] = ocr_words
                         page_dict["extraction_method"] = "ocr"
                         page_dict["has_native_text"] = False
-                        page_dict["confidence"] = Decimal("0.75")  # OCR is less reliable
+                        page_dict["confidence"] = ocr_confidence
+                        page_dict["fallback_required"] = (
+                            ocr_confidence < OCR_FALLBACK_THRESHOLD
+                        )
+                    page_dict["ocr_attempted"] = True
+                    page_dict["ocr_confidence"] = ocr_confidence
                 except Exception:
                     # OCR failed; keep native extraction
-                    pass
+                    page_dict["ocr_attempted"] = True
+                    page_dict["ocr_confidence"] = Decimal(0)
             
             result.append(page_dict)
     
     return result
+
+
+def _ocr_words(data: dict[str, list[Any]], *, scale: int) -> tuple[list[dict[str, Any]], Decimal]:
+    words: list[dict[str, Any]] = []
+    confidences: list[Decimal] = []
+    for index, raw_text in enumerate(data.get("text", [])):
+        text = str(raw_text).strip()
+        try:
+            confidence = Decimal(str(data.get("conf", [])[index]))
+        except (IndexError, ValueError):
+            continue
+        if not text or confidence < 0:
+            continue
+        left = int(data["left"][index]) / scale
+        top = int(data["top"][index]) / scale
+        width = int(data["width"][index]) / scale
+        height = int(data["height"][index]) / scale
+        words.append(
+            {
+                "text": text,
+                "x0": left,
+                "y0": top,
+                "x1": left + width,
+                "y1": top + height,
+                "block_number": data.get("block_num", [0] * len(data["text"]))[index],
+                "line_number": data.get("line_num", [0] * len(data["text"]))[index],
+                "word_number": data.get("word_num", [0] * len(data["text"]))[index],
+            }
+        )
+        confidences.append(confidence)
+    if not confidences:
+        return words, Decimal(0)
+    mean = sum(confidences, Decimal(0)) / Decimal(len(confidences)) / Decimal(100)
+    return words, min(Decimal(1), mean.quantize(Decimal("0.01")))
 
 
 def normalize_financial_value(text: str) -> tuple[Decimal | None, str | None]:
