@@ -49,7 +49,7 @@ joblib>=1.4,<2.0
 sentence-transformers>=3.3,<6.0
 
 # ---------- LLM / agent integration ----------
-# OpenAI-compatible client for TensorMux -> GLM-4-7B-Flash MoE 30B endpoint.
+# OpenAI-compatible client for TensorMux -> GLM-4.7-Flash MoE 30B endpoint.
 openai>=1.60,<3.0
 
 # ---------- Serialization / utilities ----------

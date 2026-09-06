@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import zipfile
 from datetime import UTC, date, datetime
@@ -23,6 +24,8 @@ from services.reconciliation.deterministic import reconcile_records
 from services.reconciliation.deterministic.engine import audit_events_for_results
 
 from .storage import DocumentStore
+
+logger = logging.getLogger(__name__)
 
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
 
@@ -150,6 +153,9 @@ def create_router(store: DocumentStore, ml_model_directory: Path | None = None) 
                 evidence=[{"match_result": item} for item in run["exceptions"][:30]],
             )
         except (TensorMuxError, ValueError) as exc:
+            # Keep gateway details out of the browser response, but retain the
+            # safe exception summary in service logs for deployment diagnosis.
+            logger.warning("TensorMux investigation unavailable: %s", exc)
             raise HTTPException(
                 status_code=503, detail="TensorMux investigation is unavailable"
             ) from exc
@@ -157,7 +163,7 @@ def create_router(store: DocumentStore, ml_model_directory: Path | None = None) 
         store.add_audit(
             AuditEvent(
                 event_type="INVESTIGATION_COMPLETED",
-                actor="glm-4-7b-flash",
+                actor="glm-4.7-flash",
                 entity_type="ReconciliationRun",
                 entity_id=run_id,
                 occurred_at=datetime.now(UTC),

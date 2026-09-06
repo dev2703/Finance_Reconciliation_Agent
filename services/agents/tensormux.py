@@ -23,7 +23,7 @@ class TensorMuxSettings(BaseSettings):
 
     base_url: str = "http://localhost:8080/v1"
     api_key: SecretStr
-    model: str = "glm-4-7b-flash"
+    model: str = "glm-4.7-flash"
     timeout_seconds: float = Field(default=30.0, gt=0, le=300)
     max_retries: int = Field(default=2, ge=0, le=5)
     input_cost_per_million: Decimal = Field(default=Decimal(0), ge=0)

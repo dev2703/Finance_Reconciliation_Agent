@@ -642,7 +642,7 @@ Configure OpenAI-compatible endpoint. TensorMux documents a single gateway endpo
 **Status: Implemented and tested locally.** The configurable client uses the OpenAI-compatible
 `/chat/completions` boundary. Live gateway reachability requires deployment credentials.
 
-### 8.2 GLM-4-7B-Flash MoE 30B client — Agent H
+### 8.2 GLM-4.7-Flash MoE 30B client — Agent H
 
 **Add:**
 
@@ -1326,7 +1326,7 @@ AO workers should be assigned leaf features with clear acceptance tests, not vag
 - [ ] evidence tools
 - [ ] token/tool limits
 - [ ] TensorMux
-- [ ] GLM-4-7B-Flash MoE 30B
+- [ ] GLM-4.7-Flash MoE 30B
 
 ### Controls
 

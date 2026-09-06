@@ -75,7 +75,7 @@ AO (Agent Orchestrator at aoagents.dev) is a coding-agent supervisor/IDE used to
 
 ### Model principle
 
-Use GLM-4-7B-Flash MoE 30B access through TensorMux for LLM tasks. Do not send the full ledger to the model. The LLM receives compact, relevant evidence bundles and structured cases only.
+Use GLM-4.7-Flash MoE 30B access through TensorMux for LLM tasks. Do not send the full ledger to the model. The LLM receives compact, relevant evidence bundles and structured cases only.
 
 ### Integration principle
 
@@ -128,7 +128,7 @@ MVP uses uploads. Integration adapters are implemented behind the same normalize
                          TensorMux
                              │
                              ▼
-                    GLM-4-7B-Flash MoE 30B
+                    GLM-4.7-Flash MoE 30B
                              │
                              ▼
                      Structured Agent Output
@@ -836,7 +836,7 @@ The goal is not “let the agent reason until it is happy”; it is “retrieve 
 
 ## Section 12. LLM usage architecture
 
-GLM-4-7B-Flash MoE 30B should be the single available reasoning model behind TensorMux.
+GLM-4.7-Flash MoE 30B should be the single available reasoning model behind TensorMux.
 
 **Use cases:**
 
@@ -1107,7 +1107,7 @@ OpenAI-compatible client
         ↓
 TensorMux
         ↓
-GLM-4-7B-Flash MoE 30B
+GLM-4.7-Flash MoE 30B
 ```
 
 Keep provider/model selection behind configuration.

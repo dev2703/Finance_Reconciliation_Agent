@@ -27,7 +27,7 @@ CORS_ORIGINS=https://your-project.vercel.app
 OBJECT_STORAGE_PATH=/tmp/finance-objects
 TENSORMUX_BASE_URL=https://your-tensormux-gateway.example/v1
 TENSORMUX_API_KEY=your-secret-gateway-token
-TENSORMUX_MODEL=glm-4-7b-flash
+TENSORMUX_MODEL=glm-4.7-flash
 TENSORMUX_TIMEOUT_SECONDS=30
 TENSORMUX_MAX_RETRIES=2
 ```
