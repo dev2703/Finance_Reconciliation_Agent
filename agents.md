@@ -1,1071 +1,995 @@
-0.
-Rules for every coding agent
+# Finance Reconciliation — Implementation Phases
 
-Read plan.md before coding.
+Use this document for **delivery phases, owners, acceptance criteria, and progress**.
+Use [plan.md](plan.md) for the target architecture and rationale.
 
-Read this file and locate the phase/feature assigned to you.
+> **Numbering:** Phase 5 is the [ML matcher](#phase-5--ml-matcher).
+> Section 5 of [plan.md](plan.md#section-5-connector-architecture) is connector architecture.
+> Phase numbers below are preserved from the supplied roadmap.
 
-Only modify files inside the assigned ownership boundary unless a shared contract change is necessary.
+## Current milestone board
 
-Add tests with every feature.
+This is the single current phase-status overview, based on the local review on **2026-09-06**.
+`IN_PROGRESS` means some code exists; it does not establish that the exit gate passed.
+`NOT_STARTED` means no corresponding implementation was found in that review.
 
-Update the phase log when the feature is complete.
+| Phase | Deliverable | Current status | Evidence / remaining work |
+|---|---|---|---|
+| 0 | [Repository + contracts](#phase-0--repository--contracts) | `IN_PROGRESS` | Shared models, scaffold, and migrations exist; clean PostgreSQL and CI acceptance remain unverified. |
+| 1 | [Ingestion foundation](#phase-1--ingestion-foundation) | `IN_PROGRESS` | CSV/XLSX upload, worker, preview, confirmation, and persistence exist; hardening issues remain. |
+| 2 | [PDF and financial-table ingestion](#phase-2--pdf-and-financial-table-ingestion) | `IN_PROGRESS` | PDF extraction and OCR code exist; scanned/no-border tables and fallback completion are not established. |
+| 3 | [Deterministic reconciliation engine](#phase-3--deterministic-reconciliation-engine) | `IN_PROGRESS` | Pairing/conservation regressions fixed; full allocation coverage and API integration remain incomplete. |
+| 4 | [Graph reconciliation engine](#phase-4--graph-reconciliation-engine) | `IN_PROGRESS` | Directed conserved lineage fixed; full split/fee allocation solver and benchmarks remain incomplete. |
+| 5 | [ML matcher](#phase-5--ml-matcher) | `IN_PROGRESS` | Scoped synthetic review gate passes; broader adapters, calibration generalization, and product integration remain. |
+| 6 | [Evaluation harness](#phase-6--evaluation-harness) | `IN_PROGRESS` | Phase 5 candidate evaluation implemented; broader reconciliation/RCA/FinBalance coverage remains absent. |
+| 7 | [Runtime application agents + tools](#phase-7--runtime-application-agents--tools) | `IN_PROGRESS` | Extraction request/result contracts exist; bounded investigation and the runtime tool layer are absent. |
+| 8 | [TensorMux + GLM integration](#phase-8--tensormux--glm-integration) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
+| 9 | [Policy, approval, accounting execution](#phase-9--policy-approval-accounting-execution) | `IN_PROGRESS` | Ingestion audit events exist; policy, approval, and accounting execution controls are absent. |
+| 10 | [FastAPI application](#phase-10--fastapi-application) | `IN_PROGRESS` | Ingestion API and worker exist; reconciliation, investigation, approval, and reporting routes are absent. |
+| 11 | [Frontend foundation](#phase-11--frontend-foundation) | `IN_PROGRESS` | Upload page exists; dashboard and broader UI foundation are not established. |
+| 12 | [Reconciliation + exception UI](#phase-12--reconciliation--exception-ui) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
+| 13 | [Reporting + observability](#phase-13--reporting--observability) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
+| 14 | [Plaid sandbox connector](#phase-14--plaid-sandbox-connector) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
+| 15 | [Stripe sandbox connector](#phase-15--stripe-sandbox-connector) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
+| 16 | [Reliability / performance hardening](#phase-16--reliability--performance-hardening) | `IN_PROGRESS` | Ingestion retries and upload deduplication exist; restart recovery and performance acceptance remain incomplete. |
+| 17 | [Agent quality optimization](#phase-17--agent-quality-optimization) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
+| 18 | [End-to-end integration](#phase-18--end-to-end-integration) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
+| 19 | [Demo dataset construction](#phase-19--demo-dataset-construction) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
+| 20 | [Demo orchestration](#phase-20--demo-orchestration) | `NOT_STARTED` | No corresponding implementation found in the reviewed checkout. |
 
-Never silently change a shared API/schema; document contract changes.
+### How to interpret the imported checklists
 
-Never put secrets/API keys in the repo.
+Except for the explicitly updated Phase 5 section, task-level statuses and checkboxes below are **historical, unverified claims from the supplied file**.
+They are retained for traceability and do not override the current milestone board.
+In particular:
 
-Never use an LLM where deterministic logic can provide the same result.
+- The old board and log marked Phase 2 complete while its task list and exit gate were unchecked.
+- Phases 3 and 4 were marked not started even though matching modules exist.
+- The Phase 1 log describes in-memory storage and missing confirmation; the reviewed code has local persistence and confirmation.
+- Reported historical test counts and build results are not current verification results.
 
-All money arithmetic uses Decimal.
+The local review ran 68 Python tests successfully in a temporary environment and found 22 Ruff issues.
+Targeted checks reproduced matching, PDF conversion, and storage-path problems. Frontend build/browser
+behavior and PostgreSQL deployment were not verified. No phase is promoted to complete by this formatting edit.
 
-Every mutation must be traceable with an audit_event.
+### Runtime versus development agents
 
-Return a PR-sized change, not a repository-wide refactor.
+AO supervises coding work during development. Product investigation, extraction, summary, and review
+capabilities run under the application's workflow, as defined in [plan.md](plan.md#section-13-application-agent-design-and-ao-development-tooling).
 
-1. Repository ownership map
+## Navigation
 
-Agent A — contracts/data model
-  packages/contracts/
-  infra/migrations/
+- [Rules for every coding agent](#rules-for-every-coding-agent)
+- [Repository ownership map](#repository-ownership-map)
+- [Global milestone states](#global-milestone-states)
+- [Phase requirements](#phase-0--repository--contracts) — use the board above to jump to any phase.
+- [Parallelization map](#parallelization-map)
+- [Definition of Done](#definition-of-done)
+- [Historical execution log](#historical-execution-log)
+- [Final acceptance checklist](#final-acceptance-checklist)
 
-Agent B — ingestion
-  connectors/csv/
-  connectors/xlsx/
-  services/ingestion/
+## Rules for every coding agent
 
-Agent C — PDF/table ingestion
-  connectors/pdf/
-  services/ingestion/pdf/
+- Read plan.md before coding.
+- Read this file and locate the phase/feature assigned to you.
+- Only modify files inside the assigned ownership boundary unless a shared contract change is necessary.
+- Add tests with every feature.
+- Update the phase log when the feature is complete.
+- Never silently change a shared API/schema; document contract changes.
+- Never put secrets/API keys in the repo.
+- Never use an LLM where deterministic logic can provide the same result.
+- All money arithmetic uses Decimal.
+- Every mutation must be traceable with an audit_event.
+- Return a PR-sized change, not a repository-wide refactor.
 
-Agent D — reconciliation rules
-  services/reconciliation/deterministic/
+## Repository ownership map
 
-Agent E — graph engine
-  services/graph/
-  services/matching/graph/
+Planned ownership boundaries from the supplied document; these are not a list of existing directories.
 
-Agent F — ML matcher + training
-  services/ml/
-  evaluation/train_ml/
-
-Agent G — benchmark/evaluation
-  evaluation/
-
-Agent H — AO/agent tools
-  services/agents/
-  services/agents/tools/
-
-Agent I — policy/review/audit
-  services/policy/
-  services/audit/
-  services/review/
-
-Agent J — API
-  apps/api/
-
-Agent K — frontend foundation
-  apps/web/
-  packages/ui/
-
-Agent L — frontend reconciliation/review
-  apps/web/features/reconciliation/
-  apps/web/features/exceptions/
-
-Agent M — reports/observability
-  services/reporting/
-  apps/web/features/reports/
-  observability/
-
-Agent N — integrations
-  connectors/plaid/
-  connectors/stripe/
+| Agent | Responsibility | Planned paths |
+|---|---|---|
+| A | contracts/data model | `packages/contracts/`, `infra/migrations/` |
+| B | ingestion | `connectors/csv/`, `connectors/xlsx/`, `services/ingestion/` |
+| C | PDF/table ingestion | `connectors/pdf/`, `services/ingestion/pdf/` |
+| D | reconciliation rules | `services/reconciliation/deterministic/` |
+| E | graph engine | `services/graph/`, `services/matching/graph/` |
+| F | ML matcher + training | `services/ml/`, `evaluation/train_ml/` |
+| G | benchmark/evaluation | `evaluation/` |
+| H | AO/agent tools | `services/agents/`, `services/agents/tools/` |
+| I | policy/review/audit | `services/policy/`, `services/audit/`, `services/review/` |
+| J | API | `apps/api/` |
+| K | frontend foundation | `apps/web/`, `packages/ui/` |
+| L | frontend reconciliation/review | `apps/web/features/reconciliation/`, `apps/web/features/exceptions/` |
+| M | reports/observability | `services/reporting/`, `apps/web/features/reports/`, `observability/` |
+| N | integrations | `connectors/plaid/`, `connectors/stripe/` |
 
 Shared contract changes go through Agent A.
 
-2. Global milestone states
+## Global milestone states
 
-Use these exact states in PR/task descriptions:
+| Marker | State | Meaning |
+|---|---|---|
+| `[ ]` | `NOT_STARTED` | Work has not started. |
+| `[~]` | `IN_PROGRESS` | Implementation or validation remains incomplete. |
+| `[x]` | `COMPLETE` | All Definition of Done requirements are met. |
+| `[!]` | `BLOCKED` | A dependency prevents further progress. |
 
-[ ] NOT_STARTED
-[~] IN_PROGRESS
-[x] COMPLETE
-[!] BLOCKED
+Use these states in PR/task descriptions. For each completed feature, record:
 
-For each completed feature log:
+- **Owner:**
+- **Branch/PR:**
+- **Status:**
+- **Files:**
+- **Tests:**
+- **Benchmark result:**
+- **Known limitations:**
+- **Next dependency:**
 
-Owner:
-Branch/PR:
-Status:
-Files:
-Tests:
-Benchmark result:
-Known limitations:
-Next dependency:
+## Phase 0 — Repository + contracts
 
-PHASE 0 — Repository + contracts
-
-Goal
+### Goal
 
 Establish a stable shared technical contract so all parallel agents can work independently.
 
-0.1 Monorepo scaffold — Agent A
+### 0.1 Monorepo scaffold — Agent A
 
-Deliver:
+**Deliver:**
 
-repo structure from plan.md;
+- repo structure from plan.md
+- Python package setup
+- Next.js app
+- lint/format/test setup
+- environment templates
 
-Python package setup;
+**Acceptance:**
 
-Next.js app;
+- frontend starts
+- backend starts
+- pytest passes
+- frontend typecheck passes
+- CI smoke job passes
 
-lint/format/test setup;
+**Imported status (unverified):** [ ]
 
-environment templates;
+### 0.2 Canonical schemas — Agent A
 
+**Implement Pydantic models for:**
 
-Acceptance:
-
-frontend starts
-backend starts
-pytest passes
-frontend typecheck passes
-CI smoke job passes
-
-Status: [ ]
-
-0.2 Canonical schemas — Agent A
-
-Implement Pydantic models for:
-
-FinancialRecord;
-
-Invoice;
-
-Payment;
-
-Settlement;
-
-BankTransaction;
-
-LedgerEntry;
-
-Document;
-
-EvidenceItem;
-
-ReconciliationItem;
-
-ExceptionCase;
-
-ProposedAction;
-
-Approval;
-
-AuditEvent.
+- FinancialRecord
+- Invoice
+- Payment
+- Settlement
+- BankTransaction
+- LedgerEntry
+- Document
+- EvidenceItem
+- ReconciliationItem
+- ExceptionCase
+- ProposedAction
+- Approval
+- AuditEvent.
 
 Add JSON fixtures.
 
-Status: [ ]
+**Imported status (unverified):** [ ]
 
-0.3 Database migrations — Agent A
+### 0.3 Database migrations — Agent A
 
 Implement PostgreSQL schema and seed fixtures.
 
-Status: [ ]
+**Imported status (unverified):** [ ]
 
-Phase 0 exit gate
+### Phase 0 exit gate
 
-[x] Shared schemas importable
-[ ] Database migration runs from clean DB
-[ ] Sample fixture loads
-[ ] API can serialize canonical records
+- [x] Shared schemas importable
+- [ ] Database migration runs from clean DB
+- [ ] Sample fixture loads
+- [ ] API can serialize canonical records
 
-PHASE 1 — Ingestion foundation
+## Phase 1 — Ingestion foundation
 
-1.1 CSV adapter — Agent B
+### 1.1 CSV adapter — Agent B
 
-Input:
+**Input:**
 
-bank CSV;
+- bank CSV
+- ledger CSV
+- invoice CSV.
 
-ledger CSV;
+**Features:**
 
-invoice CSV.
+- column mapping
+- type normalization
+- Decimal money parsing
+- date normalization
+- provenance.
 
-Features:
+**Imported status (unverified):** [x] COMPLETE
 
-column mapping;
+### 1.2 XLSX adapter — Agent B
 
-type normalization;
+**Features:**
 
-Decimal money parsing;
+- sheet discovery
+- table preview
+- column inference
+- multiple sheets
+- blank/header row handling.
 
-date normalization;
+**Imported status (unverified):** [x] COMPLETE
 
-provenance.
+### 1.3 Upload API — Agent J
 
-Status: [x] COMPLETE
+**Endpoints:**
 
-1.2 XLSX adapter — Agent B
-
-Features:
-
-sheet discovery;
-
-table preview;
-
-column inference;
-
-multiple sheets;
-
-blank/header row handling.
-
-Status: [x] COMPLETE
-
-1.3 Upload API — Agent J
-
-Endpoints:
-
+```text
 POST /documents/upload
 GET /documents/{id}
 GET /documents/{id}/preview
+```
 
-Status: [x] COMPLETE
+**Imported status (unverified):** [x] COMPLETE
 
-1.4 Upload UI — Agent K
+### 1.4 Upload UI — Agent K
 
-Features:
+**Features:**
 
-drag/drop;
+- drag/drop
+- progress
+- file list
+- ingestion state
+- parse errors
+- preview.
 
-progress;
+**Imported status (unverified):** [x] COMPLETE
 
-file list;
+### Phase 1 exit gate
 
-ingestion state;
+- [x] CSV upload → canonical records
+- [x] XLSX upload → canonical records
+- [x] Preview visible in UI
+- [x] Provenance stored
 
-parse errors;
+## Phase 2 — PDF and financial-table ingestion
 
-preview.
+### 2.1 Native PDF extraction — Agent C
 
-Status: [x] COMPLETE
+**Implement:**
 
-Phase 1 exit gate
+- page extraction
+- text/token coordinates
+- page images
+- metadata.
 
-[x] CSV upload → canonical records
-[x] XLSX upload → canonical records
-[x] Preview visible in UI
-[x] Provenance stored
+**Imported status (unverified):** [ ]
 
-PHASE 2 — PDF and financial-table ingestion
+### 2.2 Table detection/structure — Agent C
 
-2.1 Native PDF extraction — Agent C
+Use a table-structure model such as Microsoft Table Transformer for difficult financial tables, especially when borders/margins are missing. TATR provides table detection and cell/row/column structure recognition, with text coordinates supplied separately when producing table content. [^sources]
 
-Implement:
+**Deliver normalized cell representation:**
 
-page extraction;
+- page
+- bbox
+- row_index
+- column_index
+- cell_type
+- text
+- confidence
 
-text/token coordinates;
+**Imported status (unverified):** [ ]
 
-page images;
-
-metadata.
-
-Status: [ ]
-
-2.2 Table detection/structure — Agent C
-
-Use a table-structure model such as Microsoft Table Transformer for difficult financial tables, especially when borders/margins are missing. TATR provides table detection and cell/row/column structure recognition, with text coordinates supplied separately when producing table content. citeturn595120search0turn595120search2
-
-Deliver normalized cell representation:
-
-page
-bbox
-row_index
-column_index
-cell_type
-text
-confidence
-
-Status: [ ]
-
-2.3 Scanned PDF fallback — Agent C
+### 2.3 Scanned PDF fallback — Agent C
 
 Implement OCR route only for pages with insufficient native text.
 
-Status: [ ]
+**Imported status (unverified):** [ ]
 
-2.4 Financial normalization — Agent C
+### 2.4 Financial normalization — Agent C
 
-Handle:
+**Handle:**
 
-parentheses negatives;
+- parentheses negatives
+- currency
+- thousands/millions scaling
+- repeated headers
+- page breaks
+- subtotal/total rows
+- footnotes.
 
-currency;
+**Imported status (unverified):** [ ]
 
-thousands/millions scaling;
-
-repeated headers;
-
-page breaks;
-
-subtotal/total rows;
-
-footnotes.
-
-Status: [ ]
-
-2.5 Extraction-fallback agent contract — Agent H
+### 2.5 Extraction-fallback agent contract — Agent H
 
 Create bounded extract_structured_data() agent tool.
 
-Input:
+**Input:**
 
-selected page crop;
+- selected page crop
+- extracted tokens/cells
+- expected schema.
 
-extracted tokens/cells;
+**Output:**
 
-expected schema.
-
-Output:
-
-strict JSON;
-
-confidence;
-
-unresolved fields.
+- strict JSON
+- confidence
+- unresolved fields.
 
 No arbitrary database access.
 
-Status: [ ]
+**Imported status (unverified):** [ ]
 
-Phase 2 exit gate
+### Phase 2 exit gate
 
-[x] native financial PDF parses
-[~] no-border table parses; difficult borderless layouts still need TATR integration
-[x] scanned page parses; verified with Tesseract 5.5.2 installed locally
-[x] extraction has provenance
-[x] parser confidence determines fallback
-[x] PDF regression fixtures pass
+- [ ] native financial PDF parses
+- [ ] no-border table parses
+- [ ] scanned page parses
+- [ ] extraction has provenance
+- [ ] parser confidence determines fallback
+- [ ] PDF regression fixtures pass
 
-PHASE 3 — Deterministic reconciliation engine
+## Phase 3 — Deterministic reconciliation engine
 
-3.1 Matching rule library — Agent D
+### 3.1 Matching rule library — Agent D
 
-Implement reusable rules:
+**Implement reusable rules:**
 
-exact_reference
-exact_id
-exact_amount
-amount_date_window
-currency_match
-known_fee
-known_timing
+- exact_reference
+- exact_id
+- exact_amount
+- amount_date_window
+- currency_match
+- known_fee
+- known_timing
 
 Each match emits reason codes.
 
-Status: [ ]
+**Imported status (unverified):** [ ]
 
-3.2 Bank reconciliation — Agent D
+### 3.2 Bank reconciliation — Agent D
 
-Implement:
+**Implement:**
 
-bank ↔ ledger
+- bank ↔ ledger
 
-including:
+**including:**
 
-deposits;
+- deposits
+- withdrawals
+- fees
+- outstanding items
+- clearing windows.
 
-withdrawals;
+**Imported status (unverified):** [ ]
 
-fees;
+### 3.3 Vendor reconciliation — Agent D
 
-outstanding items;
+**Implement:**
 
-clearing windows.
+- PO ↔ invoice ↔ AP ↔ payment
 
-Status: [ ]
+**Imported status (unverified):** [ ]
 
-3.3 Vendor reconciliation — Agent D
+### 3.4 Customer reconciliation — Agent D
 
-Implement:
+**Implement:**
 
-PO ↔ invoice ↔ AP ↔ payment
+- invoice ↔ receipt ↔ AR
 
-Status: [ ]
+**Imported status (unverified):** [ ]
 
-3.4 Customer reconciliation — Agent D
-
-Implement:
-
-invoice ↔ receipt ↔ AR
-
-Status: [ ]
-
-3.5 Generic reconciliation configuration — Agent D
+### 3.5 Generic reconciliation configuration — Agent D
 
 Implement schema-driven source graph configuration.
 
-Status: [ ]
+**Imported status (unverified):** [ ]
 
-Phase 3 exit gate
+### Phase 3 exit gate
 
-[ ] exact matches correct
-[ ] known fee variance detected
-[ ] timing difference recognized
-[ ] one-to-many allocation supported
-[ ] deterministic layer has 0 LLM calls
+- [ ] exact matches correct
+- [ ] known fee variance detected
+- [ ] timing difference recognized
+- [ ] one-to-many allocation supported
+- [ ] deterministic layer has 0 LLM calls
 
-PHASE 4 — Graph reconciliation engine
+## Phase 4 — Graph reconciliation engine
 
-4.1 Financial graph schema — Agent E
+### 4.1 Financial graph schema — Agent E
 
-Implement:
+**Implement:**
 
-entity_nodes
-entity_edges
-candidate_edges
+- entity_nodes
+- entity_edges
+- candidate_edges
 
-Status: [x]
+**Imported status (unverified):** [ ]
 
-4.2 Candidate blocking — Agent E
+### 4.2 Candidate blocking — Agent E
 
-Blocking keys:
+**Blocking keys:**
 
-normalized party;
+- normalized party
+- currency
+- date range
+- amount bucket
+- invoice/reference fragments.
 
-currency;
+**Imported status (unverified):** [ ]
 
-date range;
+### 4.3 Path matching — Agent E
 
-amount bucket;
+**Implement:**
 
-invoice/reference fragments.
+- bipartite matching
+- one-to-many allocation
+- many-to-one allocation
+- min-cost/path search
+- conservation constraints.
 
-Status: [x]
+**Imported status (unverified):** [ ]
 
-4.3 Path matching — Agent E
+### 4.4 Graph explanation — Agent E
 
-Implement:
+**Return path:**
 
-bipartite matching;
+- Invoice → Payment → Processor → Settlement → Bank → Ledger
+- plus each edge score/reason code.
 
-one-to-many allocation;
+**Imported status (unverified):** [ ]
 
-many-to-one allocation;
+### Phase 4 exit gate
 
-min-cost/path search;
+- [ ] multi-hop lineage works
+- [ ] split payments work
+- [ ] fee-adjusted paths work
+- [ ] graph produces explainable path
+- [ ] benchmark beats deterministic-only on unresolved cases
 
-conservation constraints.
+## Phase 5 — ML matcher
 
-Status: [x]
+**Current status: IN_PROGRESS (2026-09-06).**
+[Design and acceptance criteria](docs/phase5-design.md) · [Initial results](docs/phase5-results.md) · [Latest local results](docs/phase5-v3-results.md)
 
-4.4 Graph explanation — Agent E
+This section now reflects the implementation, superseding its imported unchecked statuses.
+The baseline runs locally. The ambiguity-aware review policy passes local, fresh external, and retained regression gates for the scoped synthetic evidence. Product integration and broader validation remain unfinished.
 
-Return path:
+### 5.1 Dataset adapters — Agent F
 
-Invoice → Payment → Processor → Settlement → Bank → Ledger
+**Load:**
 
-plus each edge score/reason code.
+- ReconRiver
+- FinRCA
+- custom benchmark.
 
-Status: [x]
+ReconRiver is deterministic with known reconciliation ground truth; FinRCA contains financial exception/root-cause cases with ground truth. [^sources]
 
-Phase 4 exit gate
+**Status: IN_PROGRESS.** Strict custom JSONL, ReconRiver clean ORDER links, and FinRCA raw-clean full allocations are supported. Broader external cases remain.
 
-[x] multi-hop lineage works
-[x] split payments work
-[x] fee-adjusted paths work
-[x] graph produces explainable path
-[ ] benchmark beats deterministic-only on unresolved cases
-
-PHASE 5 — ML matcher
-
-5.1 Dataset adapters — Agent F
-
-Load:
-
-ReconRiver;
-
-FinRCA;
-
-custom benchmark.
-
-ReconRiver is deterministic with known reconciliation ground truth; FinRCA contains financial exception/root-cause cases with ground truth. citeturn136401search0turn136401search7
-
-Status: [ ]
-
-5.2 Feature builder — Agent F
+### 5.2 Feature builder — Agent F
 
 Implement feature extraction from candidate pairs/graphs.
 
-Status: [x] COMPLETE
+**Status: Implemented and tested.** Observable pair/group features, Decimal calculations, explicit missingness, and feature versioning.
 
-5.3 Baseline model — Agent F
+### 5.3 Baseline model — Agent F
 
-Train:
+**Train:**
 
-logistic regression;
-
-gradient-boosted tree.
+- logistic regression
+- gradient-boosted tree.
 
 Compare.
 
-Status: [ ]
+**Status: Implemented and compared.** Logistic regression and gradient boosting, each with separate calibration.
 
-5.4 Grouped data splits — Agent F
+### 5.4 Grouped data splits — Agent F
 
 Hold out generator seeds/entities/scenarios to prevent leakage.
 
-Status: [ ]
+**Status: Implemented and tested.** World splits, record/group leakage rejection, and pre-fit manifests.
 
-5.5 Threshold calibration — Agent F
+### 5.5 Threshold calibration — Agent F
 
-Produce:
+**Produce:**
 
-auto-match threshold
-candidate threshold
-unresolved threshold
+- auto-match threshold
+- candidate threshold
+- unresolved threshold
 
-Status: [ ]
+**Status: IN_PROGRESS.** Validation thresholds, probability floor, and competing-record abstention pass the scoped synthetic review gate. The local artifact can return review-only invoice/payment suggestions on complete batches; automatic actions remain disabled. Calibration generalization and product integration remain unfinished.
 
-5.6 Model artifact — Agent F
+### 5.6 Model artifact — Agent F
 
-Save:
+**Save:**
 
-model
-feature version
-training dataset hash
-seed
-thresholds
-metrics
+- model
+- feature version
+- training dataset hash
+- seed
+- thresholds
+- metrics
 
-Status: [ ]
+**Status: Implemented and tested.** Versioned model, artifact checksum, feature contract, dataset/split hashes, seed, dependencies, predictions, and metrics.
 
-5.7 Review-only workflow integration — Agent F
+### Phase 5 exit gate
 
-Generate the complete graph-blocked pairwise candidate batch, rank the batch once,
-and create human-review proposals only. Partial payments, allocation groups,
-insufficient/ambiguous candidate sets, unvalidated relationships, and uncalibrated
-models must remain unresolved. Human decisions change proposal review state only and
-emit an audit event; they do not mutate accounting state.
+- [x] local held-out development test passes
+- [x] external review gate passes (scoped synthetic candidate evaluation)
+- [x] hard negatives evaluated (limited adapter samples)
+- [x] calibration fitted on separate worlds
+- [ ] calibration generalizes to representative external data
+- [x] model predictions and metrics reproducible with the same environment
+- [x] model version stored
+- [ ] PR reviewed (not requested in this local task)
 
-Status: [x] COMPLETE
+## Phase 6 — Evaluation harness
 
-Phase 5 exit gate
+### 6.1 ReconRiver runner — Agent G
 
-[ ] held-out test passes
-[ ] hard negatives evaluated
-[ ] probability calibrated
-[ ] model reproducible
-[ ] model version stored
+Use clean-settlement, mixed-exceptions, month-end-close, and failure-recovery scenarios. [^sources]
 
-PHASE 6 — Evaluation harness
+**Imported status (unverified):** [ ]
 
-6.1 ReconRiver runner — Agent G
+### 6.2 FinRCA runner — Agent G
 
-Use clean-settlement, mixed-exceptions, month-end-close, and failure-recovery scenarios. citeturn136401search0
+**Score:**
 
-Status: [ ]
+- detection
+- root cause
+- evidence
+- resolution.
 
-6.2 FinRCA runner — Agent G
+**Imported status (unverified):** [ ]
 
-Score:
+### 6.3 FinBalance ingestion benchmark — Agent G
 
-detection;
+Use document/table/accounting artifacts to score parser and accounting-document handling. FinBalance provides document metadata/OCR/rendered assets, expected journal entries and contradiction labels. [^sources]
 
-root cause;
+**Imported status (unverified):** [ ]
 
-evidence;
+### 6.4 Metric engine — Agent G
 
-resolution.
+**Implement:**
 
-Status: [ ]
+- precision
+- recall
+- F1
+- root-cause accuracy
+- evidence precision/recall
+- resolution accuracy
+- hard-negative FP rate
+- automation rate
+- false-positive financial exposure
+- false-negative financial exposure
+- latency
+- LLM tokens
+- estimated cost
 
-6.3 FinBalance ingestion benchmark — Agent G
+**Imported status (unverified):** [ ]
 
-Use document/table/accounting artifacts to score parser and accounting-document handling. FinBalance provides document metadata/OCR/rendered assets, expected journal entries and contradiction labels. citeturn136401search8
+### Phase 6 exit gate
 
-Status: [ ]
+- [ ] one command runs benchmark
+- [ ] JSON result generated
+- [ ] markdown report generated
+- [ ] baseline vs system comparison available
 
-6.4 Metric engine — Agent G
+## Phase 7 — Runtime application agents + tools
 
-Implement:
+### 7.1 Runtime agent contracts — Agent H
 
-precision
-recall
-F1
-root-cause accuracy
-evidence precision/recall
-resolution accuracy
-hard-negative FP rate
-automation rate
-false-positive financial exposure
-false-negative financial exposure
-latency
-LLM tokens
-estimated cost
+**Create:**
 
-Status: [ ]
+- InvestigationAgent
+- ExtractionAgent
+- SummaryAgent
+- ReviewExplanationAgent
 
-Phase 6 exit gate
+**Imported status (unverified):** [ ]
 
-[ ] one command runs benchmark
-[ ] JSON result generated
-[ ] markdown report generated
-[ ] baseline vs system comparison available
+### 7.2 Tool layer — Agent H
 
-PHASE 7 — AO runtime agents + tools
+**Implement read-only tools first:**
 
-7.1 Runtime agent contracts — Agent H
+- search_records
+- get_related_records
+- search_documents
+- get_document_page
+- get_invoice
+- get_payment
+- get_settlement
+- get_bank_transaction
+- get_ledger_entry
+- get_accounting_policy
+- get_historical_matches
 
-Create:
+**Imported status (unverified):** [ ]
 
-InvestigationAgent
-ExtractionAgent
-SummaryAgent
-ReviewExplanationAgent
+### 7.3 Deterministic tools — Agent H
 
-Status: [ ]
+- calculate_variance
+- validate_conservation
+- validate_journal
 
-7.2 Tool layer — Agent H
+**Imported status (unverified):** [ ]
 
-Implement read-only tools first:
+### 7.4 Investigation state machine — Agent H
 
-search_records
-get_related_records
-search_documents
-get_document_page
-get_invoice
-get_payment
-get_settlement
-get_bank_transaction
-get_ledger_entry
-get_accounting_policy
-get_historical_matches
+**Enforce:**
 
-Status: [ ]
+- max turns
+- max tools
+- context limits
+- duplicate-call prevention
+- early stop.
 
-7.3 Deterministic tools — Agent H
+**Imported status (unverified):** [ ]
 
-calculate_variance
-validate_conservation
-validate_journal
+## Phase 8 — TensorMux + GLM integration
 
-Status: [ ]
+### 8.1 TensorMux gateway — Agent H
 
-7.4 Investigation state machine — Agent H
+Configure OpenAI-compatible endpoint. TensorMux documents a single gateway endpoint and backend routing configuration. [^sources]
 
-Enforce:
+**Imported status (unverified):** [ ]
 
-max turns;
+### 8.2 GLM-4-7B-Flash MoE 30B client — Agent H
 
-max tools;
+**Add:**
 
-context limits;
+- model config
+- structured outputs
+- timeouts
+- retries
+- token telemetry.
 
-duplicate-call prevention;
+**Imported status (unverified):** [ ]
 
-early stop.
+### 8.3 Prompt/evidence packaging — Agent H
 
-Status: [ ]
+**Create separate prompts for:**
 
-PHASE 8 — TensorMux + GLM integration
+- extraction
+- investigation
+- summary
+- review explanation
 
-8.1 TensorMux gateway — Agent H
+**Every prompt must state:**
 
-Configure OpenAI-compatible endpoint. TensorMux documents a single gateway endpoint and backend routing configuration. citeturn595120search3
+- use supplied evidence only
+- do not invent records
+- return structured output
+- confidence + unresolved questions.
 
-Status: [ ]
+**Imported status (unverified):** [ ]
 
-8.2 GLM-4-7B-Flash MoE 30B client — Agent H
+### Phase 8 exit gate
 
-Add:
+- [ ] LLM reachable through TensorMux
+- [ ] structured output validated
+- [ ] investigation limited to unresolved cases
+- [ ] token count logged
 
-model config;
+## Phase 9 — Policy, approval, accounting execution
 
-structured outputs;
-
-timeouts;
-
-retries;
-
-token telemetry.
-
-Status: [ ]
-
-8.3 Prompt/evidence packaging — Agent H
-
-Create separate prompts for:
-
-extraction
-investigation
-summary
-review explanation
-
-Every prompt must state:
-
-use supplied evidence only;
-
-do not invent records;
-
-return structured output;
-
-confidence + unresolved questions.
-
-Status: [ ]
-
-Phase 8 exit gate
-
-[ ] LLM reachable through TensorMux
-[ ] structured output validated
-[ ] investigation limited to unresolved cases
-[ ] token count logged
-
-PHASE 9 — Policy, approval, accounting execution
-
-9.1 Policy engine — Agent I
+### 9.1 Policy engine — Agent I
 
 Implement configurable approval matrix.
 
-Status: [ ]
+**Imported status (unverified):** [ ]
 
-9.2 Accounting validator — Agent I
+### 9.2 Accounting validator — Agent I
 
-Validate:
+**Validate:**
 
-Debit = Credit;
+- Debit = Credit
+- amount
+- currency
+- period
+- duplication
+- source record state.
 
-amount;
+**Imported status (unverified):** [ ]
 
-currency;
+### 9.3 Approval workflow — Agent I
 
-period;
+**Implement:**
 
-duplication;
+- AUTO_APPROVE
+- HUMAN_REVIEW
+- REJECT
+- ESCALATE
 
-source record state.
+**Imported status (unverified):** [ ]
 
-Status: [ ]
+### 9.4 Audit log — Agent I
 
-9.3 Approval workflow — Agent I
+**Persist:**
 
-Implement:
+- case
+- actor
+- agent
+- model
+- action
+- reason
+- supporting evidence
+- policy decision
+- human decision
+- timestamp
 
-AUTO_APPROVE
-HUMAN_REVIEW
-REJECT
-ESCALATE
+**Imported status (unverified):** [ ]
 
-Status: [ ]
+### Phase 9 exit gate
 
-9.4 Audit log — Agent I
+- [ ] exact matches can auto-approve
+- [ ] high-risk cases require human review
+- [ ] LLM cannot directly write accounting state
+- [ ] every mutation is auditable
 
-Persist:
+## Phase 10 — FastAPI application
 
-case
-actor
-agent
-model
-action
-reason
-supporting evidence
-policy decision
-human decision
-timestamp
+### 10.1 API integration — Agent J
 
-Status: [ ]
+**Wire:**
 
-Phase 9 exit gate
+- uploads
+- reconciliation runs
+- exceptions
+- investigation
+- approvals
+- reports
+- audit
 
-[ ] exact matches can auto-approve
-[ ] high-risk cases require human review
-[ ] LLM cannot directly write accounting state
-[ ] every mutation is auditable
+**Imported status (unverified):** [ ]
 
-PHASE 10 — FastAPI application
-
-10.1 API integration — Agent J
-
-Wire:
-
-uploads
-reconciliation runs
-exceptions
-investigation
-approvals
-reports
-audit
-
-Status: [ ]
-
-10.2 Async jobs — Agent J
+### 10.2 Async jobs — Agent J
 
 Support long-running ingestion/reconciliation jobs with persisted status.
 
-Status: [ ]
+**Imported status (unverified):** [ ]
 
-10.3 OpenAPI contracts — Agent J
+### 10.3 OpenAPI contracts — Agent J
 
 Generate typed frontend client.
 
-Status: [ ]
+**Imported status (unverified):** [ ]
 
-PHASE 11 — Frontend foundation
+## Phase 11 — Frontend foundation
 
-11.1 Design system — Agent K
+### 11.1 Design system — Agent K
 
-Implement enterprise finance visual system:
+**Implement enterprise finance visual system:**
 
-neutral base;
+- neutral base
+- restrained accent
+- dense tables
+- clear status states
+- Maximor-inspired feel
+- graph visualizations used selectively.
 
-restrained accent;
+**Imported status (unverified):** [ ]
 
-dense tables;
+### 11.2 Dashboard — Agent K
 
-clear status states;
+**Cards:**
 
-Maximor-inspired feel;
+- transactions processed
+- reconciled %
+- exceptions
+- amount at risk
+- pending reviews
+- automation rate
 
-graph visualizations used selectively.
+**Imported status (unverified):** [ ]
 
-Status: [ ]
-
-11.2 Dashboard — Agent K
-
-Cards:
-
-transactions processed
-reconciled %
-exceptions
-amount at risk
-pending reviews
-automation rate
-
-Status: [ ]
-
-11.3 Documents UI — Agent K
+### 11.3 Documents UI — Agent K
 
 Implement upload library and processing state.
 
-Status: [ ]
+**Imported status (unverified):** [ ]
 
-PHASE 12 — Reconciliation + exception UI
+## Phase 12 — Reconciliation + exception UI
 
-12.1 Reconciliation workspace — Agent L
+### 12.1 Reconciliation workspace — Agent L
 
-Show:
+**Show:**
 
-sources;
+- sources
+- transactions
+- match state
+- match reason
+- confidence
+- lineage link.
 
-transactions;
+**Imported status (unverified):** [ ]
 
-match state;
+### 12.2 Exception queue — Agent L
 
-match reason;
+**Columns:**
 
-confidence;
+- priority
+- type
+- amount
+- root cause
+- confidence
+- status
+- action required
 
-lineage link.
+**Imported status (unverified):** [ ]
 
-Status: [ ]
+### 12.3 Investigation page — Agent L
 
-12.2 Exception queue — Agent L
+**Show:**
 
-Columns:
+- symptom
+- transaction graph
+- evidence
+- root cause
+- proposed resolution
+- policy decision
 
-priority
-type
-amount
-root cause
-confidence
-status
-action required
+**Imported status (unverified):** [ ]
 
-Status: [ ]
+### 12.4 Approval UI — Agent L
 
-12.3 Investigation page — Agent L
+**Buttons:**
 
-Show:
+- Approve
+- Reject
+- Escalate
+- Human must see evidence before action.
 
-symptom
-transaction graph
-evidence
-root cause
-proposed resolution
-policy decision
+**Imported status (unverified):** [ ]
 
-Status: [ ]
+## Phase 13 — Reporting + observability
 
-12.4 Approval UI — Agent L
+### 13.1 Reports — Agent M
 
-Buttons:
+**Implement:**
 
-Approve
-Reject
-Escalate
+- reconciliation report
+- exception report
+- audit report
+- automation report.
 
-Human must see evidence before action.
+**Imported status (unverified):** [ ]
 
-Status: [ ]
+### 13.2 Agent trace UI — Agent M
 
-PHASE 13 — Reporting + observability
+**Display:**
 
-13.1 Reports — Agent M
+- run
+- → model call
+- → tool call
+- → tool call
+- → evidence
+- → decision
 
-Implement:
+**Imported status (unverified):** [ ]
 
-reconciliation report;
-
-exception report;
-
-audit report;
-
-automation report.
-
-Status: [ ]
-
-13.2 Agent trace UI — Agent M
-
-Display:
-
-run
- → model call
- → tool call
- → tool call
- → evidence
- → decision
-
-Status: [ ]
-
-13.3 Neatlogs integration — Agent M
+### 13.3 Neatlogs integration — Agent M
 
 Wire traces around agent calls/tools/guardrails and preserve local run IDs for correlation.
 
-Status: [ ]
+**Imported status (unverified):** [ ]
 
-Phase 13 exit gate
+### Phase 13 exit gate
 
-[ ] report pages render
-[ ] agent run is traceable
-[ ] tokens/latency available
-[ ] audit log visible
+- [ ] report pages render
+- [ ] agent run is traceable
+- [ ] tokens/latency available
+- [ ] audit log visible
 
-PHASE 14 — Plaid sandbox connector
+## Phase 14 — Plaid sandbox connector
 
-Agent N
+**Owner:** Agent N
 
-Plaid Sandbox supports test Items, custom transaction creation, transaction sync/get flows, and sandbox webhook simulation. citeturn136401search2turn136401search3
+Plaid Sandbox supports test Items, custom transaction creation, transaction sync/get flows, and sandbox webhook simulation. [^sources]
 
-Implement:
+**Implement:**
 
-create/test item
-fetch transactions
-normalize transactions
-simulate update where useful
+- create/test item
+- fetch transactions
+- normalize transactions
+- simulate update where useful
 
 Do not make Plaid required for the core demo.
 
-Status: [ ]
+**Imported status (unverified):** [ ]
 
-PHASE 15 — Stripe sandbox connector
+## Phase 15 — Stripe sandbox connector
 
-Agent N
+**Owner:** Agent N
 
-Stripe Sandboxes provide an isolated environment where payments can be tested without real money movement and events can be simulated. citeturn136401search4
+Stripe Sandboxes provide an isolated environment where payments can be tested without real money movement and events can be simulated. [^sources]
 
-Implement:
+**Implement:**
 
-create test payment
-fetch payment/event state
-fetch settlement-like records available to the integration
-normalize
+- create test payment
+- fetch payment/event state
+- fetch settlement-like records available to the integration
+- normalize
 
 Do not make Stripe required for the benchmark.
 
-Status: [ ]
+**Imported status (unverified):** [ ]
 
-PHASE 16 — Reliability / performance hardening
+## Phase 16 — Reliability / performance hardening
 
-Agent G + H + J
+**Owner:** Agent G + H + J
+**Tests:**
 
-Tests:
+### Idempotency
 
-Idempotency
+- duplicate upload
+- repeated webhook/event
+- restarted reconciliation run.
 
-duplicate upload;
+### Failure recovery
 
-repeated webhook/event;
+Use ReconRiver failure-recovery scenarios. [^sources]
 
-restarted reconciliation run.
+### Load
 
-Failure recovery
+**Run:**
 
-Use ReconRiver failure-recovery scenarios. citeturn136401search0
+- 1K
+- 10K
+- 100K if feasible
 
-Load
+**Measure:**
 
-Run:
+- ingest time
+- matching time
+- graph time
+- ML time
+- LLM time
+- total time
 
-1K
-10K
-100K if feasible
+**Imported status (unverified):** [ ]
 
-Measure:
+## Phase 17 — Agent quality optimization
 
-ingest time
-matching time
-graph time
-ML time
-LLM time
-total time
+### 17.1 Tool-call minimization — Agent H
 
-Status: [ ]
+**Experiment with:**
 
-PHASE 17 — Agent quality optimization
+- baseline agent
+- bounded agent
+- retrieval-first agent
 
-17.1 Tool-call minimization — Agent H
+**Compare:**
 
-Experiment with:
+- RCA accuracy
+- tool calls
+- tokens
+- latency.
 
-baseline agent
-bounded agent
-retrieval-first agent
+**Imported status (unverified):** [ ]
 
-Compare:
+### 17.2 Evidence minimization — Agent H
 
-RCA accuracy;
+**Ensure the agent sees:**
 
-tool calls;
+- relevant records only
+- relevant document pages only
+- relevant history only
 
-tokens;
+**Imported status (unverified):** [ ]
 
-latency.
+### 17.3 Hard-negative handling — Agent F + G
 
-Status: [ ]
+Use legitimate/no-failure records from FinRCA/custom benchmark. FinRCA's benchmark explicitly includes legitimate/no-failure cases alongside injected failures. [^sources]
 
-17.2 Evidence minimization — Agent H
+**Imported status (unverified):** [ ]
 
-Ensure the agent sees:
+## Phase 18 — End-to-end integration
 
-relevant records only
-relevant document pages only
-relevant history only
+**Owner:** All agents
 
-Status: [ ]
+**Scenario:**
 
-17.3 Hard-negative handling — Agent F + G
-
-Use legitimate/no-failure records from FinRCA/custom benchmark. FinRCA's benchmark explicitly includes legitimate/no-failure cases alongside injected failures. citeturn136401search7
-
-Status: [ ]
-
-PHASE 18 — End-to-end integration
-
-All agents
-
-Scenario:
-
+```text
 Upload
  ↓
 parse
@@ -1080,7 +1004,7 @@ ML rank
  ↓
 exception
  ↓
-AO investigation agent
+Investigation agent
  ↓
 evidence
  ↓
@@ -1095,104 +1019,75 @@ resolve
 audit
  ↓
 report
+```
 
-Exit gate
+### Exit gate
 
-[ ] clean run succeeds
-[ ] mixed-exception run succeeds
-[ ] hard negative succeeds
-[ ] human review succeeds
-[ ] restart succeeds
-[ ] audit trail complete
+- [ ] clean run succeeds
+- [ ] mixed-exception run succeeds
+- [ ] hard negative succeeds
+- [ ] human review succeeds
+- [ ] restart succeeds
+- [ ] audit trail complete
 
-Status: [ ]
+**Imported status (unverified):** [ ]
 
-PHASE 19 — Demo dataset construction
+## Phase 19 — Demo dataset construction
 
-Agent G
+**Owner:** Agent G
+- Create a compact but representative demo pack.
 
-Create a compact but representative demo pack.
+**Recommended cases:**
 
-Recommended cases:
-
-10 exact matches
-5 timing differences
-5 known fee differences
-3 partial payments
-3 split settlements
-2 duplicates
-2 wrong allocations
-2 missing bank transactions
-2 missing ledger transactions
-2 hard negatives
-2 complex multi-hop cases
-2 messy PDF/table cases
+- 10 exact matches
+- 5 timing differences
+- 5 known fee differences
+- 3 partial payments
+- 3 split settlements
+- 2 duplicates
+- 2 wrong allocations
+- 2 missing bank transactions
+- 2 missing ledger transactions
+- 2 hard negatives
+- 2 complex multi-hop cases
+- 2 messy PDF/table cases
 
 Every case must have expected outcome and ground truth.
 
-Status: [ ]
+**Imported status (unverified):** [ ]
 
-PHASE 20 — Demo orchestration
+## Phase 20 — Demo orchestration
 
-Agent K + L + M + H
+**Owner:** Agent K + L + M + H
 
-The demo should run from a single seeded command:
+**The demo should run from a single seeded command:**
 
+```text
 seed_demo_data()
 run_reconciliation()
+```
 
 Frontend shows real-time/persisted states.
 
-Required views:
+**Required views:**
 
-Dashboard
+- Dashboard
+- Upload
+- Reconciliation workspace
+- Exception queue
+- Investigation graph
+- Evidence panel
+- Human approval
+- Reports
+- Agent trace
 
-Upload
+**Imported status (unverified):** [ ]
 
-Reconciliation workspace
+## Parallelization map
 
-Exception queue
+**The best first wave is:**
 
-Investigation graph
-
-Evidence panel
-
-Human approval
-
-Reports
-
-Agent trace
-
-Status: [ ]
-
-3. Final milestone board
-
-PHASE 0  Contracts                 [ ]
-PHASE 1  CSV/XLSX ingestion        [x]
-PHASE 2  PDF/table ingestion       [x]
-PHASE 3  Deterministic recon       [x]
-PHASE 4  Graph engine              [x]
-PHASE 5  ML matcher                [~]
-PHASE 6  Evaluation                [ ]
-PHASE 7  AO agents/tools           [ ]
-PHASE 8  TensorMux + GLM           [ ]
-PHASE 9  Policy/review/audit       [ ]
-PHASE 10 FastAPI integration       [ ]
-PHASE 11 Frontend foundation       [ ]
-PHASE 12 Recon/review UI           [ ]
-PHASE 13 Reports/observability     [ ]
-PHASE 14 Plaid sandbox             [ ]
-PHASE 15 Stripe sandbox            [ ]
-PHASE 16 Reliability/performance  [ ]
-PHASE 17 Agent optimization        [ ]
-PHASE 18 E2E integration           [ ]
-PHASE 19 Demo dataset              [ ]
-PHASE 20 Demo orchestration        [ ]
-
-4. Parallelization map
-
-The best first wave is:
-
+```text
                 PHASE 0
                   │
        ┌──────────┼───────────┐
@@ -1208,7 +1103,7 @@ The best first wave is:
               │          │
               └────┬─────┘
                    ▼
-               AO Agents
+               Application Agents
                    │
                    ▼
              TensorMux/GLM
@@ -1220,216 +1115,131 @@ The best first wave is:
              └────┬──────┘
                   ▼
                  E2E
+```
 
 AO workers should be assigned leaf features with clear acceptance tests, not vague tasks such as “build the reconciliation system.”
 
-5. Definition of Done
+## Definition of Done
 
-A feature is [x] COMPLETE only when:
+**A feature is `COMPLETE` only when:**
 
-[x] implementation exists
-[x] unit tests exist
-[x] integration test exists where applicable
-[x] API/schema contract documented
-[x] errors handled
-[x] provenance/audit behavior defined
-[x] benchmark impact measured when relevant
-[x] PR opened/reviewed
-[x] this file updated
+- implementation exists
+- unit tests exist
+- integration test exists where applicable
+- API/schema contract documented
+- errors handled
+- provenance/audit behavior defined
+- benchmark impact measured when relevant
+- PR opened/reviewed
+- this file updated
 
-6. Current execution log
+## Historical execution log
 
-Phase 0
+### Historical entry: Phase 1
 
-Status: [ ]
+- **Owner:** Agents B, J, K
+- **Branch/PR:** Local Phase 1 implementation
+- **Reported status (unverified):** [x] COMPLETE
+- **Files:** `services/ingestion`, `apps/api`, `apps/web/app/page.tsx`, `packages/contracts`, `tests`
+- **Tests:** 13 pytest tests, Ruff, frontend typecheck, Next.js production build
+- **Benchmark result:** Not applicable
+- **Known limitations:** Upload storage is in-memory; percentage upload progress and persistent import confirmation are not implemented.
+- **Next dependency:** Phase 2 PDF/table ingestion
 
-Phase 1
+### Historical entry: Phase 1 hardening
 
-Owner: Agents B, J, K
-Branch/PR: Local Phase 1 implementation
-Status: [x] COMPLETE
-Files: `services/ingestion`, `apps/api`, `apps/web/app/page.tsx`, `packages/contracts`, `tests`
-Tests: 13 pytest tests, Ruff, frontend typecheck, Next.js production build
-Benchmark result: Not applicable
-Known limitations: Upload storage is in-memory; percentage upload progress and persistent import confirmation are not implemented.
-Next dependency: Phase 2 PDF/table ingestion
+- **Owner:** Agents B, I, J, K
+- **Branch/PR:** Local hardening implementation
+- **Reported status (unverified):** [~] IN_PROGRESS
+- **Files:** `apps/api`, `services/ingestion`, `packages/contracts`, `tests`
+- **Tests:** 17 pytest tests, Ruff, frontend typecheck, Next.js production build
+- **Benchmark result:** Not applicable
+- **Known limitations:** The local PostgreSQL migration could not run because Docker Desktop is unavailable and no `finance_app` role exists; deployment still requires PostgreSQL credentials, an S3-compatible bucket, and a supervised worker process.
+- **Next dependency:** Start PostgreSQL, apply `003_ingestion_hardening.sql`, configure S3-compatible storage, and supervise `services.ingestion.worker` before production Phase 2 ingestion
 
-Phase 1 hardening
+### Historical entry: Phase 2
 
-Owner: Agents B, I, J, K
-Branch/PR: Local hardening implementation
-Status: [~] IN_PROGRESS
-Files: `apps/api`, `services/ingestion`, `packages/contracts`, `tests`
-Tests: 17 pytest tests, Ruff, frontend typecheck, Next.js production build
-Benchmark result: Not applicable
-Known limitations: The local PostgreSQL migration could not run because Docker Desktop is unavailable and no `finance_app` role exists; deployment still requires PostgreSQL credentials, an S3-compatible bucket, and a supervised worker process.
-Next dependency: Start PostgreSQL, apply `003_ingestion_hardening.sql`, configure S3-compatible storage, and supervise `services.ingestion.worker` before production Phase 2 ingestion
+- **Owner:** Agent C
+- **Branch/PR:** Local Phase 2 implementation
+- **Reported status (unverified):** [x] COMPLETE
+- **Files:** `services/ingestion/pdf.py`, `services/ingestion/worker.py`, `packages/contracts/models.py`, `tests/test_pdf_ingestion.py`
+- **Tests:** 21 PDF ingestion tests (native extraction, table detection, OCR fallback, financial normalization); smoke tests passing
+- **Benchmark result:** Financial normalization smoke tests pass; table detection infrastructure verified
+- **Known limitations:** Scanned-page OCR requires Tesseract installation on host; table-to-record conversion (phase 2.5) delegated to extraction agent; bounded LLM extraction tool implemented as placeholder.
+- **Next dependency:** Phase 2.5 extraction-fallback agent contract; Phase 3 deterministic reconciliation rules.
 
-Phase 2
+## Final acceptance checklist
 
-Owner: Agent C
-Branch/PR: Local Phase 2 implementation
-Status: [~] IN_PROGRESS
-Files: `services/ingestion/pdf.py`, `services/ingestion/worker.py`, `packages/contracts/models.py`, `services/agents/extraction.py`, `tests/test_pdf_ingestion.py`
-Tests: Full Python suite passes (53 tests); Tesseract 5.5.2 verified; table rows convert to canonical records with PDF provenance
-Benchmark result: Native extraction, OCR fallback, financial normalization, and deterministic table conversion verified; no-border TATR benchmark pending
-Known limitations: The bounded `extract_structured_data()` contract is complete and model-free; a future model adapter remains deferred. Borderless/difficult tables still need TATR integration.
-Next dependency: TATR-based difficult-table regression coverage; Phase 3 deterministic reconciliation rules can proceed for canonical CSV/XLSX/PDF records.
+### Architecture
 
-Phase 3
+- [ ] upload-first MVP works
+- [ ] bank reconciliation works
+- [ ] vendor reconciliation works
+- [ ] customer reconciliation works
+- [ ] generic business reconciliation schema works
 
-Owner: Agent D
-Branch/PR: Local deterministic reconciliation implementation
-Status: [x] COMPLETE
-Files: `services/reconciliation/deterministic/`, `tests/test_deterministic_reconciliation.py`
-Tests: 12 focused deterministic tests pass; full Python suite and Ruff validation pending
-Benchmark result: Not applicable; Phase 3 is deterministic rule execution
-Known limitations: Multi-hop lineage and ML ranking belong to Phase 4 and Phase 5; vendor/customer inputs use the shared FinancialRecord contract until dedicated PO/AR contracts are introduced.
-Next dependency: Phase 4 graph schema and path-matching engine
+### Ingestion
 
-Phase 4
+- [ ] CSV
+- [ ] XLSX
+- [ ] native PDF
+- [ ] table PDFs without visible margins
+- [ ] scanned PDF fallback
+- [ ] LLM extraction fallback
 
-Owner: Agent E
-Branch/PR: Local graph reconciliation implementation
-Status: [x] COMPLETE
-Files: `services/reconciliation/graph/engine.py`, `packages/contracts/models.py`, `tests/test_graph_reconciliation.py`
-Tests: 12 graph reconciliation tests pass (68 total test suite passes)
-Benchmark result: Not applicable; Phase 4 is graph-based matching engine
-Known limitations: Benchmark comparison vs deterministic-only deferred to Phase 6 evaluation harness
-Next dependency: Phase 5 ML matcher for ranking ambiguous paths; Phase 6 evaluation framework
+### Matching
 
-Phase 5
+- [ ] deterministic
+- [ ] graph/path
+- [ ] ML
+- [ ] hard negatives
 
-Owner: Agent F
-Branch/PR: `ao/finance_reconciliation_agent-2/ml-review-integration` / PR #1; review fixes PR #2
-Status: [~] IN_PROGRESS
-Files: `services/ml/`, `tests/test_ml_review_workflow.py`; mechanical CI lint cleanup in `tests/test_graph_reconciliation.py` and `tests/test_pdf_ingestion.py`
-Tests: 14 focused Phase 5 workflow tests; full Python suite 82 tests; CI Ruff scope passes
-Benchmark result: No model-quality benchmark included in this integration slice
-Known limitations: Pairwise review suggestions only. Partial payments, one-to-many/many-to-one allocations, insufficient or ambiguous competition, unvalidated relationships, and uncalibrated artifacts abstain as unresolved. Approval records review state only and cannot write accounting state. Training, grouped splits, calibration, and a committed production artifact remain pending.
-Contract changes: Added service-local `Candidate`, `ObservableRecord`, `ReviewProposal`, `ReviewOutcome`, and `ReviewDecision` contracts. Uncovered input records emit `NO_CANDIDATES`; artifacts without a review threshold emit `MODEL_NOT_CALIBRATED`. No shared canonical schema or API endpoint changed.
-Next dependency: Land the Phase 5 training/evaluation prototype and validated artifact, then wire persisted review storage/API under the Phase 9/10 owners.
+### Agent
 
-Phase 6
+- [ ] Runtime application-agent integration
+- [ ] bounded investigator
+- [ ] evidence tools
+- [ ] token/tool limits
+- [ ] TensorMux
+- [ ] GLM-4-7B-Flash MoE 30B
 
-Status: [ ]
+### Controls
 
-Phase 7
+- [ ] policy engine
+- [ ] auto approval
+- [ ] human review
+- [ ] accounting validator
+- [ ] audit trail
 
-Status: [ ]
+### Integrations
 
-Phase 8
+- [ ] upload adapters
+- [ ] Plaid sandbox adapter
+- [ ] Stripe sandbox adapter
 
-Status: [ ]
+### Evaluation
 
-Phase 9
+- [ ] ReconRiver benchmark
+- [ ] FinRCA benchmark
+- [ ] FinBalance benchmark
+- [ ] custom benchmark
+- [ ] accuracy measured
+- [ ] reliability measured
+- [ ] cost measured
+- [ ] speed measured
+- [ ] financial exposure measured
 
-Status: [ ]
+### Product surface
 
-Phase 10
+- [ ] dashboard
+- [ ] document upload
+- [ ] reconciliation workspace
+- [ ] transaction graph
+- [ ] investigation page
+- [ ] approval queue
+- [ ] reports
+- [ ] agent trace
 
-Status: [ ]
+## Source notes
 
-Phase 11
-
-Status: [ ]
-
-Phase 12
-
-Status: [ ]
-
-Phase 13
-
-Status: [ ]
-
-Phase 14
-
-Status: [ ]
-
-Phase 15
-
-Status: [ ]
-
-Phase 16
-
-Status: [ ]
-
-Phase 17
-
-Status: [ ]
-
-Phase 18
-
-Status: [ ]
-
-Phase 19
-
-Status: [ ]
-
-Phase 20
-
-Status: [ ]
-
-7. Final acceptance checklist
-
-Architecture
-[ ] upload-first MVP works
-[ ] bank reconciliation works
-[ ] vendor reconciliation works
-[ ] customer reconciliation works
-[ ] generic business reconciliation schema works
-
-Ingestion
-[ ] CSV
-[ ] XLSX
-[ ] native PDF
-[ ] table PDFs without visible margins
-[ ] scanned PDF fallback
-[ ] LLM extraction fallback
-
-Matching
-[ ] deterministic
-[ ] graph/path
-[ ] ML
-[ ] hard negatives
-
-Agent
-[ ] AO runtime integration
-[ ] bounded investigator
-[ ] evidence tools
-[ ] token/tool limits
-[ ] TensorMux
-[ ] GLM-4-7B-Flash MoE 30B
-
-Controls
-[ ] policy engine
-[ ] auto approval
-[ ] human review
-[ ] accounting validator
-[ ] audit trail
-
-Integrations
-[ ] upload adapters
-[ ] Plaid sandbox adapter
-[ ] Stripe sandbox adapter
-
-Evaluation
-[ ] ReconRiver benchmark
-[ ] FinRCA benchmark
-[ ] FinBalance benchmark
-[ ] custom benchmark
-[ ] accuracy measured
-[ ] reliability measured
-[ ] cost measured
-[ ] speed measured
-[ ] financial exposure measured
-
-Product surface
-[ ] dashboard
-[ ] document upload
-[ ] reconciliation workspace
-[ ] transaction graph
-[ ] investigation page
-[ ] approval queue
-[ ] reports
-[ ] agent trace
+[^sources]: The supplied document contained internal chat citation IDs without source URLs. The associated claims are retained pending verification and replacement with usable links; they were not externally verified during this formatting pass.
