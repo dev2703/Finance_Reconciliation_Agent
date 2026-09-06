@@ -54,6 +54,8 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
+# Bundled third-party skills are maintained upstream, including Markdown code blocks.
+extend-exclude = [".claude/skills"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "FURB"]

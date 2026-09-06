@@ -1305,6 +1305,17 @@ AO workers should be assigned leaf features with clear acceptance tests, not vag
 - **Known limitations:** Live export has not been accepted against a deployed Neatlogs project key
 - **Next dependency:** Configure `NEATLOGS_API_KEY` in the Python deployment and verify exported investigation traces
 
+### Phase 0 CI exclusion entry — 2026-09-07
+
+- **Owner:** CI maintenance
+- **Branch/PR:** `ao/finance_reconciliation_agent-16/ruff-skill-exclusion` (separate from PR 7)
+- **Status:** [x] COMPLETE locally; remote CI pending
+- **Files:** `pyproject.toml`, `tests/test_ruff_config.py`, `agents.md`
+- **Tests:** `uv run ruff format --check .` (118 files already formatted), `uv run ruff check .` (passed), `uv run pytest` (162 passed, 7 dependency deprecation warnings)
+- **Benchmark result:** Not applicable; CI configuration only
+- **Known limitations:** Exclusion applies to recursive discovery; explicit file arguments retain Ruff's existing behavior. Bundled third-party skills and Phase 5 content are unchanged.
+- **Next dependency:** Remote CI acceptance
+
 ## Final acceptance checklist
 
 ### Architecture
