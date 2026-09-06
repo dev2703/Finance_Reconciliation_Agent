@@ -4,13 +4,13 @@ This document describes the **target architecture and requirements**, not comple
 For delivery phases, owners, acceptance criteria, and progress, use [agents.md](agents.md).
 
 > **Numbering:** “Section 5” here means connector architecture. “Phase 5” in
-> [agents.md](agents.md#phase-5--ml-matcher) means the ML matcher. Architecture sections
+> [agents.md](agents.md#phase-5--tensormux-candidate-ranker) means the TensorMux candidate ranker. Architecture sections
 > and delivery phases use separate numbering.
 
 ## At a glance
 
 - **Product:** Bank, vendor, customer, and configurable business reconciliation.
-- **Runtime pipeline:** Upload → normalize with provenance → deterministic matching → graph matching → bounded TensorMux/GLM investigation for unresolved cases → accounting validation → approval → audited action. The Phase 5 ML ranker is synthetic-demo-only until labeled match data exists.
+- **Pipeline:** Upload → normalize with provenance → deterministic matching → graph matching → TensorMux ranking/investigation → accounting validation → approval → audited action.
 - **Stack:** Next.js frontend, FastAPI and a worker, PostgreSQL, and object storage.
 - **LLM boundary:** Compact evidence only; accounting arithmetic and final validation remain deterministic.
 - **AO boundary:** Development supervision only. FastAPI/PostgreSQL own runtime workflow state.
@@ -27,7 +27,7 @@ For delivery phases, owners, acceptance criteria, and progress, use [agents.md](
 - [Section 6. Plaid and Stripe sandboxes](#section-6-plaid-and-stripe-sandboxes)
 - [Section 7. Reconciliation engine](#section-7-reconciliation-engine)
 - [Section 8. Three-stage matching architecture](#section-8-three-stage-matching-architecture)
-- [Section 9. How to train the ML matcher](#section-9-how-to-train-the-ml-matcher)
+- [Section 9. How to evaluate the TensorMux ranker](#section-9-how-to-evaluate-the-tensormux-ranker)
 - [Section 10. Ground-truth datasets and how each is used](#section-10-ground-truth-datasets-and-how-each-is-used)
 - [Section 11. Investigation agent architecture](#section-11-investigation-agent-architecture)
 - [Section 12. LLM usage architecture](#section-12-llm-usage-architecture)
@@ -45,7 +45,7 @@ For delivery phases, owners, acceptance criteria, and progress, use [agents.md](
 - [Section 24. Evaluation architecture](#section-24-evaluation-architecture)
 - [Section 25. Financial-risk metrics](#section-25-financial-risk-metrics)
 - [Section 26. Accuracy / reliability / cost / speed experiment](#section-26-accuracy--reliability--cost--speed-experiment)
-- [Section 27. Training/evaluation data flow](#section-27-trainingevaluation-data-flow)
+- [Section 27. TensorMux evaluation data flow](#section-27-tensormux-evaluation-data-flow)
 - [Section 28. Security boundaries for MVP](#section-28-security-boundaries-for-mvp)
 - [Section 29. Deployment architecture](#section-29-deployment-architecture)
 - [Section 30. Technical build sequence](#section-30-technical-build-sequence)
@@ -67,7 +67,7 @@ The system reconciles financial records across one or more source systems, const
 
 **The LLM is not the reconciliation engine and is not the source of accounting truth. The execution order is:**
 
-parse/validate → deterministic matching → graph/path matching → bounded TensorMux/GLM investigation only when unresolved → accounting validation → approval policy → action
+parse/validate → deterministic matching → graph/path matching → TensorMux ranking and bounded investigation only when needed → accounting validation → approval policy → action
 
 ### Agent principle
 
@@ -109,7 +109,7 @@ MVP uses uploads. Integration adapters are implemented behind the same normalize
                              │
              ┌───────────────┼────────────────┐
              ▼               ▼                ▼
-       Deterministic      Graph/Path        ML Matcher
+       Deterministic      Graph/Path    Evidence Builder
           Rules             Engine              │
              │               │                  │
              └───────────────┼──────────────────┘
@@ -164,8 +164,8 @@ cfo-autopilot/
 │   ├── ingestion/
 │   ├── reconciliation/
 │   ├── matching/
+│   │   └── tensormux/               # ranking/evidence orchestration
 │   ├── graph/
-│   ├── ml/
 │   ├── agents/
 │   ├── policy/
 │   ├── audit/
@@ -552,11 +552,12 @@ Bank deposit = 965
 
 The path is valid even though no single row equals the original payment amount.
 
-### Stage C — ML scoring
+### Stage C — TensorMux candidate ranking
 
-Use ML for ambiguous candidate ranking, not basic accounting arithmetic.
+Use TensorMux for ambiguous candidate ranking, not basic accounting arithmetic. Send one complete
+competing candidate group so the model cannot score hand-picked pairs without their rivals.
 
-**Feature groups:**
+**Evidence groups:**
 
 ```text
 amount:
@@ -571,7 +572,7 @@ date:
 text:
   merchant similarity
   reference similarity
-  description embedding similarity
+  deterministic description similarity
 
 entity:
   vendor/customer match
@@ -584,23 +585,43 @@ graph:
   number of supporting records
 ```
 
-Initial model: gradient-boosted tree or logistic regression baseline. Move to a learned ranking model only if benchmark results justify it.
+The evidence builder computes these facts deterministically. TensorMux receives only bounded,
+relevant records and may not recompute money, invent candidates, or access the database directly.
 
-**Output:**
+One competing group is the complete connected component of blocked candidate edges sharing any
+source or target record. Before calling TensorMux, assert every edge in that component is present.
+Allow at most 100 candidates, 30 evidence items, and 24,000 input tokens. Do not truncate an
+oversized group; return `UNRESOLVED/GROUP_TOO_LARGE`.
+
+**Canonical group output:**
 
 ```text
 {
-  "candidate_id": "cand_123",
-  "match_probability": 0.982,
-  "feature_summary": {...}
+  "group_id": "group_123",
+  "ranked_candidates": [{
+    "candidate_id": "cand_123",
+    "classification": "HUMAN_REVIEW",
+    "confidence": 0.982,
+    "reason_codes": [...],
+    "supporting_evidence_ids": [...],
+    "contradicting_evidence_ids": [...],
+    "unresolved_questions": []
+  }],
+  "no_match": false,
+  "decision_manifest_hash": "...",
+  "prompt_hash": "...",
+  "schema_hash": "...",
+  "tensormux_route": "reconciliation-ranker",
+  "backend_model_version": "..."
 }
 ```
 
-## Section 9. How to train the ML matcher
+## Section 9. How to evaluate the TensorMux ranker
 
-Use the synthetic datasets as supervised training/evaluation material, but prevent leakage.
+Use the ground-truth datasets for prompt development, calibration, and sealed evaluation. There is
+no local model training or executable model artifact.
 
-### 9.1 Training examples
+### 9.1 Evaluation examples
 
 Construct positive and negative pairs/groups from known ground truth.
 
@@ -621,7 +642,7 @@ Construct positive and negative pairs/groups from known ground truth.
 - valid split payment
 - fee-related amount difference.
 
-### 9.2 Split strategy
+### 9.2 Sealed split strategy
 
 Never randomly split individual rows from the same generated world into train and test if this leaks templates.
 
@@ -636,53 +657,86 @@ Never randomly split individual rows from the same generated world into train an
 
 **Example:**
 
-- Train: seeds 1–30
+- Development: seeds 1–30
 - Validation: seeds 31–35
 - Test: seeds 36–40
 
-Then create a second harder test set with unseen combinations of failure types.
+Then create a second, unpublished custom hard set with unseen combinations of failure types. Public
+ReconRiver and FinRCA results must be reported separately because a hosted model may have encountered
+public benchmark material during pretraining. The authoritative production gate is the unpublished
+set with at least 500 complete candidate groups and 100 hard-negative groups.
 
-### 9.3 Training pipeline
+### 9.3 Evaluation pipeline
 
 ```text
 ReconRiver / FinRCA / custom generated cases
              ↓
        candidate generator
              ↓
-        feature builder
+        evidence builder
              ↓
-      train / validation split
+      development / calibration / sealed test split
              ↓
-           model fit
+   TensorMux prompt + schema + pinned route
              ↓
-       calibration / threshold
+     empirical threshold evaluation
              ↓
        held-out evaluation
              ↓
-      model artifact + version
+       decision manifest + version
 ```
 
-Log model version, features, seed, dataset hash, threshold, and metrics.
+Log TensorMux route, pinned backend model version, prompt/schema/evidence-builder hashes, dataset-generation seed,
+dataset hashes, thresholds, inference parameters (`temperature`, `top_p`, `max_tokens`, response
+format), and metrics. Read the observed backend version from a configured TensorMux response
+field/header; missing or mismatched versions fail closed. Any bundle change requires reevaluation,
+and CI must assert the runtime manifest hash equals the last evaluated manifest hash.
+
+The manifest also fixes the ranking budgets. Initial maximums are one logical model call and three
+transport attempts per group, 24,000 input tokens, 2,000 output tokens, 90 seconds, and USD 0.10
+estimated cost per group; and 1,000 groups, 26,000,000 total tokens, 30 minutes, and USD 50 per run.
+Deployments may lower these values. Raising one changes the manifest hash and requires reevaluation.
+
+Cache validated outputs by `(decision_manifest_hash, evidence_bundle_hash)`. For nondeterminism
+measurement, bypass the cache and run every unpublished sealed group three times. Classification
+disagreement must be <= 1%; any candidate that disagrees remains unresolved.
 
 ### 9.4 Thresholding
 
-Do not select the threshold solely for F1.
+Do not select the threshold solely for F1. Select only a human-review threshold and unresolved
+boundary. TensorMux never makes an automatic accounting decision.
 
-**Select thresholds for:**
+The authoritative unpublished sealed set must meet all of these frozen gates:
 
-- high-precision auto-match
-- medium-confidence candidate queue
-- low-confidence exception investigation.
+- `HUMAN_REVIEW` precision >= 98%; a selected candidate is correct only if it is a ground-truth
+  link, so the denominator is every candidate classified `HUMAN_REVIEW`
+- hard-negative review false-positive rate <= 1%
+- unresolved-group count at least 10% lower than deterministic+graph on the identical set
+- no threshold changes after examining sealed results.
 
-**For example:**
+Exact deterministic rules may remain eligible for automatic action only after accounting validation
+and policy approval; policy must never use TensorMux ranker confidence as an `AUTO_APPROVE` input.
 
-```text
-P(match) >= 0.995   → eligible for automatic action
-0.90–0.995          → candidate/secondary validation
-< 0.90              → unresolved / investigation
-```
+### 9.5 Local-model migration and removal
 
-These are starting values, not final production thresholds; tune them on held-out data.
+The merged local-model implementation is superseded; it is not a second production ranking path.
+The first migration PR deletes the local `/reconciliation/ml-review` behavior,
+`ML_MODEL_DIRECTORY`, and the two local Phase 5 runtime/demo documents. It moves provider-neutral
+dataset contracts/adapters into `evaluation/datasets/` without importing training code. Historical
+`services/ml/` training, calibration, artifact, model, workflow, selection, feature, and contract
+modules plus `evaluation/train_ml/` are deleted or moved under `evaluation/legacy_ml/`; no API or
+worker may import them.
+
+Once TensorMux ranking passes its sealed acceptance gate, remove any remaining
+`evaluation/legacy_ml/` experiments. Retain only provider-neutral dataset adapters and evaluation
+metrics under `evaluation/`. There must be one production inference boundary: the versioned
+TensorMux decision manifest and shared gateway.
+
+Remove `scikit-learn`, `xgboost`, `joblib`, and `sentence-transformers` from runtime dependencies.
+`torch` and `transformers` remain only in the PDF/TATR worker dependency set, not because of ranking.
+Architecture tests must verify that production starts without model files or prohibited dependencies,
+the runtime import graph contains no `joblib.load`/`model.joblib` path, TensorMux manifest versions
+are recorded on outputs, and gateway failure yields `UNRESOLVED` without accounting mutation.
 
 ## Section 10. Ground-truth datasets and how each is used
 
@@ -756,7 +810,7 @@ It is not called for every transaction.
 ```text
 unresolved after deterministic
 AND
-unresolved/low-confidence after graph + ML
+unresolved/low-confidence after graph + TensorMux ranking
 ```
 
 ### Input case
@@ -868,6 +922,12 @@ The LLM should not calculate KPI values; it verbalizes known values.
 ### D. Review explanation
 
 Convert evidence + validated decision into clear reviewer language.
+
+### E. Candidate ranking
+
+Rank one complete graph-blocked competing group against the canonical Phase 5 schema. Apply the
+ranking-specific group, token, time, call-count, and cost budgets. Never truncate a group and never
+return an automatic accounting action.
 
 ## Section 13. Application-agent design and AO development tooling
 
@@ -1017,6 +1077,13 @@ Use PostgreSQL as the primary system of record.
 - audit_events
 - agent_runs
 - model_calls
+- tensor_mux_ranking_decisions
+- tensor_mux_decision_manifests
+
+`tensor_mux_ranking_decisions` stores the group and evidence hashes, validated response, distinct
+terminal reason, manifest hash/version, observed backend version, model-call IDs, and timestamps.
+The manifest table stores immutable prompt/schema/evidence-builder hashes, route/backend pins,
+inference parameters, evaluated dataset hashes, thresholds, metrics, and approval state.
 
 Object storage holds source PDFs/XLSX/CSV and page/table images. PostgreSQL stores metadata, normalized records, provenance and workflow state.
 
@@ -1096,7 +1163,9 @@ All APIs return machine-readable IDs/statuses; frontend rendering is separate.
 
 ## Section 19. TensorMux placement
 
-TensorMux is the model inference gateway, not the workflow engine. Its documented gateway supports a single OpenAI-compatible endpoint and routes requests to configured inference backends. [^sources]
+TensorMux is the system's only model inference gateway and the center of candidate ranking,
+extraction fallback, investigation, summary, and review explanation. FastAPI/PostgreSQL still own
+workflow state, and deterministic code still owns accounting facts, validation, and mutation.
 
 **Architecture:**
 
@@ -1150,7 +1219,7 @@ Store a local minimal agent_runs record regardless of external observability ava
 - total run time
 - deterministic matching time
 - graph matching time
-- ML inference time
+- TensorMux ranking time
 - agent time
 - tool-call count
 - model tokens
@@ -1315,11 +1384,11 @@ Deterministic-only matcher.
 
 ### Baseline B
 
-Deterministic + graph + ML.
+Deterministic + graph + TensorMux ranking.
 
 ### System C
 
-Deterministic + graph + bounded TensorMux/GLM investigation. The ML matcher remains optional and demo-only until labeled data exists.
+Deterministic + graph + TensorMux ranking + bounded GLM investigation.
 
 **Optionally:**
 
@@ -1341,7 +1410,7 @@ Same as C with tighter evidence selection/tool-call limits.
 
 This demonstrates whether the agentic layer creates measurable value rather than merely increasing complexity.
 
-## Section 27. Training/evaluation data flow
+## Section 27. TensorMux evaluation data flow
 
 ```text
                  DATA SOURCES
@@ -1359,12 +1428,12 @@ This demonstrates whether the agentic layer creates measurable value rather than
                       │
           ┌───────────┴────────────┐
           ▼                        ▼
-      TRAINING                 TESTING
+   DEVELOPMENT/CALIBRATION     SEALED TESTING
           │                        │
-    ML matcher             End-to-end agent
+ TensorMux decision bundle  End-to-end workflow
           │                        │
           ▼                        ▼
-       artifact                 metrics
+ versioned manifest            metrics
 ```
 
 Do not use test-set labels as prompts or retrieval documents.
@@ -1386,6 +1455,11 @@ No production authentication stack is required for the hackathon.
 - audit log for every mutation.
 
 ## Section 29. Deployment architecture
+
+Modal is not required by this architecture. The initial deployment may use Vercel for Next.js and
+short control-plane requests, with a separately selected durable worker runtime for ingestion,
+PDF/OCR, reconciliation, and TensorMux jobs. TensorMux contracts, manifests, idempotency, and
+fail-closed behavior must remain portable across worker platforms.
 
 ```text
 GitHub
@@ -1423,7 +1497,7 @@ GitHub
 - PDF/table extraction
 - deterministic reconciliation
 - graph/path matcher
-- ML candidate scorer
+- TensorMux candidate ranker
 - evaluation harness
 - Runtime application-agent integration
 - TensorMux/GLM integration
