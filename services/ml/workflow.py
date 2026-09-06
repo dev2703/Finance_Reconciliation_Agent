@@ -9,7 +9,6 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from decimal import Decimal
 from enum import StrEnum
 from itertools import combinations
 from pathlib import Path
@@ -19,6 +18,7 @@ from packages.contracts import AuditEvent, FinancialRecord
 from services.reconciliation.graph import build_candidate_edges, build_entity_nodes
 
 from .contracts import Candidate, ObservableRecord
+from .features import totals
 from .model import rank_candidates
 
 Ranker = Callable[[list[Candidate]], list[dict]]
@@ -52,7 +52,6 @@ class ReviewOutcome:
     candidates: list[Candidate]
     proposals: list[ReviewProposal]
     unresolved: list[UnresolvedCandidate]
-    accounting_mutations: int = 0
 
 
 @dataclass
@@ -84,8 +83,9 @@ class MLReviewWorkflow:
                 candidates=[],
                 proposals=[],
                 unresolved=[
-                    UnresolvedCandidate(f"source:{record.id}", "NO_CANDIDATES")
-                    for record in materialized.get(source_type, [])
+                    UnresolvedCandidate(f"{record_type}:{record.id}", "NO_CANDIDATES")
+                    for record_type in (source_type, target_type)
+                    for record in materialized.get(record_type, [])
                 ],
             )
 
@@ -102,10 +102,20 @@ class MLReviewWorkflow:
         allocation_ids = _allocation_candidate_ids(candidates)
         rival_counts = _rival_counts(candidates)
         proposals: list[ReviewProposal] = []
-        unresolved: list[UnresolvedCandidate] = []
+        covered_record_ids = {
+            record.id
+            for candidate in candidates
+            for record in candidate.sources + candidate.targets
+        }
+        unresolved = [
+            UnresolvedCandidate(f"{record_type}:{record.id}", "NO_CANDIDATES")
+            for record_type in (source_type, target_type)
+            for record in materialized.get(record_type, [])
+            if str(record.id) not in covered_record_ids
+        ]
         for candidate in candidates:
             row = ranked_by_id[candidate.id]
-            source_total, target_total = _totals(candidate)
+            source_total, target_total = totals(candidate)
             if candidate.id in allocation_ids:
                 reason = "UNSUPPORTED_ALLOCATION"
             elif source_total != target_total:
@@ -253,13 +263,6 @@ def _observable(record: FinancialRecord, record_type: str) -> ObservableRecord:
     )
 
 
-def _totals(candidate: Candidate) -> tuple[Decimal, Decimal]:
-    return (
-        sum((record.amount for record in candidate.sources), Decimal(0)),
-        sum((record.amount for record in candidate.targets), Decimal(0)),
-    )
-
-
 def _rival_counts(candidates: list[Candidate]) -> dict[str, int]:
     resources = {
         candidate.id: {record.id for record in candidate.sources + candidate.targets}
@@ -277,6 +280,8 @@ def _rival_counts(candidates: list[Candidate]) -> dict[str, int]:
 
 def _allocation_candidate_ids(candidates: list[Candidate]) -> set[str]:
     """Flag pair candidates participating in exact one-to-many/many-to-one totals."""
+    if any(len(candidate.sources) != 1 or len(candidate.targets) != 1 for candidate in candidates):
+        raise ValueError("Allocation detection requires pairwise candidates")
     by_source: dict[str, list[Candidate]] = {}
     by_target: dict[str, list[Candidate]] = {}
     for candidate in candidates:
@@ -287,12 +292,22 @@ def _allocation_candidate_ids(candidates: list[Candidate]) -> set[str]:
         source_amount = group[0].sources[0].amount
         for size in range(2, min(4, len(group) + 1)):
             for selected in combinations(group, size):
-                if sum((row.targets[0].amount for row in selected), Decimal(0)) == source_amount:
+                allocation = Candidate(
+                    id="allocation-check",
+                    sources=selected[0].sources,
+                    targets=[row.targets[0] for row in selected],
+                )
+                if totals(allocation)[1] == source_amount:
                     unsupported.update(row.id for row in selected)
     for group in by_target.values():
         target_amount = group[0].targets[0].amount
         for size in range(2, min(4, len(group) + 1)):
             for selected in combinations(group, size):
-                if sum((row.sources[0].amount for row in selected), Decimal(0)) == target_amount:
+                allocation = Candidate(
+                    id="allocation-check",
+                    sources=[row.sources[0] for row in selected],
+                    targets=selected[0].targets,
+                )
+                if totals(allocation)[0] == target_amount:
                     unsupported.update(row.id for row in selected)
     return unsupported
