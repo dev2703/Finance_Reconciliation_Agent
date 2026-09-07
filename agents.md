@@ -3,7 +3,7 @@
 Use this document for **delivery phases, owners, acceptance criteria, and progress**.
 Use [plan.md](plan.md) for the target architecture and rationale.
 
-> **Numbering:** Phase 5 is the [ML matcher](#phase-5--ml-matcher).
+> **Numbering:** Phase 5 is the [TensorMux candidate ranker](#phase-5--tensormux-candidate-ranker).
 > Section 5 of [plan.md](plan.md#section-5-connector-architecture) is connector architecture.
 > Phase numbers below are preserved from the supplied roadmap.
 
@@ -20,7 +20,7 @@ This is the single current phase-status overview, based on the local review on *
 | 2 | [PDF and financial-table ingestion](#phase-2--pdf-and-financial-table-ingestion) | `IN_PROGRESS` | Native, text-aligned no-border tables, and confidence-driven OCR fallback are tested; model fallback integration and broader fixtures remain. |
 | 3 | [Deterministic reconciliation engine](#phase-3--deterministic-reconciliation-engine) | `IN_PROGRESS` | One-to-one, one-to-many, many-to-one, audit output, stateless matching, and persisted reconciliation runs are tested. |
 | 4 | [Graph reconciliation engine](#phase-4--graph-reconciliation-engine) | `IN_PROGRESS` | Directed lineage and conserved split/fee allocation are tested; comparative benchmark acceptance remains. |
-| 5 | [ML matcher](#phase-5--ml-matcher) | `IN_PROGRESS` | `DEMO_OPTIONAL`: synthetic payment→settlement artifact is retained for demos only and is disabled unless explicitly configured. It is not part of the normal runtime workflow without labeled data. |
+| 5 | [TensorMux candidate ranker](#phase-5--tensormux-candidate-ranker) | `IN_PROGRESS` | Local-model work is superseded. TensorMux must rank complete candidate groups through a versioned, evidence-bound, review-only contract; live and representative-data acceptance remain. |
 | 6 | [Evaluation harness](#phase-6--evaluation-harness) | `COMPLETE` | Offline ReconRiver/FinRCA/FinBalance runners, metric engine, CLI, JSON/Markdown reports, and baseline comparison pass on fixture packs; external dataset acceptance remains optional. |
 | 7 | [Runtime application agents + tools](#phase-7--runtime-application-agents--tools) | `IN_PROGRESS` | Bounded evidence-only investigation controller routes persisted unresolved runs through TensorMux; broader persisted record tools remain. |
 | 8 | [TensorMux + GLM integration](#phase-8--tensormux--glm-integration) | `IN_PROGRESS` | OpenAI-compatible client, strict outputs, evidence prompts, retries, and telemetry are implemented; live TensorMux/GLM reachability remains deployment acceptance. |
@@ -93,7 +93,7 @@ Planned ownership boundaries from the supplied document; these are not a list of
 | C | PDF/table ingestion | `connectors/pdf/`, `services/ingestion/pdf/` |
 | D | reconciliation rules | `services/reconciliation/deterministic/` |
 | E | graph engine | `services/graph/`, `services/matching/graph/` |
-| F | ML matcher + training | `services/ml/`, `evaluation/train_ml/` |
+| F | TensorMux ranking + evaluation | `services/matching/tensormux/`, `evaluation/tensormux/` |
 | G | benchmark/evaluation | `evaluation/` |
 | H | AO/agent tools | `services/agents/`, `services/agents/tools/` |
 | I | policy/review/audit | `services/policy/`, `services/audit/`, `services/review/` |
@@ -445,13 +445,14 @@ Implement schema-driven source graph configuration.
 - [x] graph produces explainable path
 - [ ] benchmark beats deterministic-only on unresolved cases
 
-## Phase 5 — ML matcher
+## Phase 5 — TensorMux candidate ranker
 
 **Current status: IN_PROGRESS (2026-09-06).**
-[Design and acceptance criteria](docs/phase5-design.md) · [Initial results](docs/phase5-results.md) · [Latest local results](docs/phase5-v3-results.md)
 
-This section now reflects the implementation, superseding its imported unchecked statuses.
-The baseline runs locally. The ambiguity-aware review policy passes local, fresh external, and retained regression gates for the scoped synthetic evidence. Product integration and broader validation remain unfinished.
+The target design uses no local trained matcher or serialized model artifact. Existing local-model
+code and synthetic results are historical implementation evidence only and must not be wired into
+the production path. Candidate ranking is performed through TensorMux, with deterministic blocking,
+financial arithmetic, validation, policy, and accounting mutation remaining outside the model.
 
 ### 5.1 Dataset adapters — Agent F
 
@@ -465,62 +466,145 @@ ReconRiver is deterministic with known reconciliation ground truth; FinRCA conta
 
 **Status: IN_PROGRESS.** Strict custom JSONL, ReconRiver clean ORDER links, and FinRCA raw-clean full allocations are supported. Broader external cases remain.
 
-### 5.2 Feature builder — Agent F
+### 5.2 Evidence builder — Agent F
 
-Implement feature extraction from candidate pairs/graphs.
+Build compact, deterministic evidence bundles from complete graph-blocked candidate groups.
+Include computed amount/date/reference/party facts, graph paths, competing candidates, provenance,
+and evidence IDs. All money arithmetic remains Decimal-based and outside TensorMux.
 
-**Status: Implemented and tested.** Observable pair/group features, Decimal calculations, explicit missingness, and feature versioning.
+**Status: IN_PROGRESS.** Existing deterministic features may be reused as evidence, but the
+versioned TensorMux evidence contract and full competing-group packaging are not complete.
 
-### 5.3 Baseline model — Agent F
+### 5.3 TensorMux ranking contract — Agent F + H
 
-**Train:**
+One competing group is the full connected component of graph-blocked candidate edges that share a
+source or target record. Assert completeness before the call. A group may contain at most 100
+candidates, 30 evidence items, and 24,000 input tokens. Never truncate: an oversized group returns
+`UNRESOLVED/GROUP_TOO_LARGE`. Require one strict group response containing:
 
-- logistic regression
-- gradient-boosted tree.
+- `group_id` and an ordered `ranked_candidates` list
+- for each supplied candidate: candidate ID, `HUMAN_REVIEW` or `UNRESOLVED`, confidence, reason
+  codes, supporting/contradicting evidence IDs, and unresolved questions
+- an explicit `NO_MATCH` option for the group
+- decision-manifest hash, prompt hash, schema hash, TensorMux route, and observed backend version.
 
-Compare.
+The ranker must never enable automatic accounting action.
 
-**Status: Implemented and compared.** Logistic regression and gradient boosting, each with separate calibration.
+**Status: NOT_STARTED.** The generic TensorMux client exists, but it is not connected to candidate ranking.
 
-### 5.4 Grouped data splits — Agent F
+### 5.4 Sealed evaluation splits — Agent F + G
 
-Hold out generator seeds/entities/scenarios to prevent leakage.
+Hold out generator seeds, entities, scenarios, months, and failure classes so prompt, routing, or
+threshold decisions cannot leak test evidence. Any prompt, schema, route, model, evidence-builder,
+or policy change invalidates the sealed result and requires reevaluation.
 
-**Status: Implemented and tested.** World splits, record/group leakage rejection, and pre-fit manifests.
+**Status: IN_PROGRESS.** Existing grouped-split utilities can be reused, but they must be applied to
+the TensorMux decision bundle rather than local training.
 
-### 5.5 Threshold calibration — Agent F
+### 5.5 Empirical decision calibration — Agent F + G
 
 **Produce:**
 
-- auto-match threshold
-- candidate threshold
-- unresolved threshold
+- human-review threshold
+- unresolved boundary
 
-**Status: IN_PROGRESS.** Validation thresholds, probability floor, and competing-record abstention pass the scoped synthetic review gate. A configured local artifact can return review-only invoice/payment suggestions through `POST /reconciliation/ml-review`; automatic actions remain disabled. Calibration generalization to representative external data remains unfinished.
+Treat model confidence as an untrusted score. Evaluate thresholds on a separate calibration set for
+each immutable TensorMux decision bundle. Phase 5 emits only `HUMAN_REVIEW` or `UNRESOLVED`;
+`AUTO_APPROVE` remains exclusively deterministic and policy-controlled.
 
-### 5.6 Model artifact — Agent F
+**Status: NOT_STARTED.** Local-model calibration does not satisfy this TensorMux acceptance gate.
+
+### 5.6 TensorMux decision bundle — Agent F + H
 
 **Save:**
 
-- model
-- feature version
-- training dataset hash
-- seed
+- TensorMux route and pinned backend model version
+- prompt and strict-output schema hashes
+- evidence-builder version
+- calibration and evaluation dataset hashes
+- dataset-generation seed
+- inference parameters (`temperature`, `top_p`, `max_tokens`, response format)
 - thresholds
 - metrics
+- validated relationships and policy version
 
-**Status: Implemented and tested.** Versioned model, artifact checksum, feature contract, dataset/split hashes, seed, dependencies, predictions, and metrics.
+Do not save or load `model.joblib` or any other local executable model artifact.
+The backend version must come from a configured TensorMux response field/header, must be present,
+and must equal the manifest pin; mismatch returns `UNRESOLVED/BACKEND_VERSION_MISMATCH`. Cache
+validated results by `(decision_manifest_hash, evidence_bundle_hash)`. On an unpublished sealed
+set, run each uncached group three times; candidate classification disagreement must be <= 1%, and
+any individual disagreement remains unresolved.
+
+**Status: NOT_STARTED.** Existing local artifacts are superseded by this manifest.
+
+### 5.7 Review-only runtime integration — Agent F + H + I + J
+
+Replace the local-artifact API path with a bounded TensorMux call. Validate every response against
+the supplied candidate/evidence universe, fail closed on timeout or invalid output, emit model-call
+telemetry and audit events, and never mutate accounting state.
+
+Use distinct failure reasons and audit events: `TENSORMUX_TIMEOUT`, `TENSORMUX_RATE_LIMITED`,
+`INVALID_RANKING_SCHEMA`, `UNKNOWN_EVIDENCE_ID`, `BACKEND_VERSION_MISMATCH`, `GROUP_TOO_LARGE`, and
+`RANKING_BUDGET_EXHAUSTED`. Persist the complete validated ranker decision, evidence-bundle hash,
+decision-manifest hash/version, observed backend version, and model-call IDs in PostgreSQL.
+Enforce per-group and per-run limits for calls, input/output tokens, elapsed time, and estimated
+cost. Exhaustion is terminal for that group and returns `UNRESOLVED/RANKING_BUDGET_EXHAUSTED`.
+
+Modal is not a Phase 5 dependency or acceptance target. Production import-graph tests apply to the
+FastAPI API and whichever durable worker entrypoint is selected. Vercel may host the frontend and
+short control requests, but a deployment-platform choice must not alter the TensorMux contract.
+
+Agent F owns candidate/evidence semantics and evaluation; Agent H owns the shared TensorMux client,
+prompt execution, and telemetry. Neither may duplicate the other's gateway or ranking policy.
+
+**Status: NOT_STARTED.** The current local `ML_MODEL_DIRECTORY` runtime path is not the target design.
+
+### 5.8 Local-model decommission — Agent F + H + J
+
+The first implementation PR must remove the local runtime before adding TensorMux ranking:
+
+1. Delete `/demo/ml-review` and any alias, `ML_MODEL_DIRECTORY`, `docs/phase5-runtime.md`, and
+   `docs/phase5-synthetic-demo.md`; remove the optional-artifact statement from
+   `docs/deployment.md`, and update API tests to prove every local-artifact route is absent.
+2. Move provider-neutral dataset contracts/adapters into `evaluation/datasets/` and break their
+   import of `services.ml.training`; retain no training-example converter in the runtime graph.
+3. Move any historically useful local-model experiments under `evaluation/legacy_ml/`, or delete
+   them. Production packages must not import `services/ml/{training,calibration,artifact,model,
+   workflow,selection,features,contracts}` or its package `__init__`.
+4. Remove `scikit-learn`, `xgboost`, `joblib`, and `sentence-transformers` from
+   `requirements-runtime.txt` and `pyproject.toml` `[project].dependencies`. Retain
+   `torch`/`transformers` only in the PDF/TATR worker dependency set. Extend
+   `tests/test_runtime_dependencies.py` to assert the four prohibited packages are absent, and use
+   deterministic string similarity instead of local description embeddings.
+
+Required tests must prove that the production runtime uses a versioned TensorMux decision manifest,
+starts without local model files or the four prohibited dependencies, contains no reachable `joblib.load` or
+`model.joblib` path, and fails closed to `UNRESOLVED` when TensorMux is unavailable.
+
+**Status: NOT_STARTED.** The historical modules remain present and the API still imports the local
+ranker; they are prohibited from future production integration until this migration is completed.
 
 ### Phase 5 exit gate
 
-- [x] local held-out development test passes
-- [x] external review gate passes (scoped synthetic candidate evaluation)
-- [x] hard negatives evaluated (limited adapter samples)
-- [x] calibration fitted on separate worlds
-- [ ] calibration generalizes to representative external data
-- [x] model predictions and metrics reproducible with the same environment
-- [x] model version stored
-- [ ] PR reviewed (not requested in this local task)
+- [ ] complete competing candidate groups are ranked through TensorMux
+- [ ] strict structured output and supplied-evidence references are validated
+- [ ] authoritative unpublished custom sealed set has at least 500 groups and 100 hard-negative groups
+- [ ] `HUMAN_REVIEW` precision >= 98% and hard-negative review false-positive rate <= 1%
+- [ ] TensorMux reduces unresolved groups by >= 10% relative to deterministic+graph on the same set without violating the precision floor
+- [ ] thresholds are selected on calibration data and frozen before the sealed run
+- [ ] prompt, schema, route, backend model, datasets, thresholds, and metrics are versioned
+- [ ] TensorMux failure degrades to `UNRESOLVED`
+- [ ] no local trained model or executable model artifact is required
+- [ ] historical local-model modules are unreachable from API and worker runtime graphs
+- [ ] tests prove no production `model.joblib`, `joblib.load`, or `ML_MODEL_DIRECTORY` path
+- [ ] three-run uncached decision disagreement <= 1%; disagreements remain unresolved
+- [ ] runtime manifest hash equals the last evaluated manifest hash in CI
+- [ ] per-group and per-run token, latency, call-count, and cost budgets fail closed when exhausted
+- [ ] every output is review-only and every mutation remains outside the model boundary
+- [ ] process gate: independent review approves the complete Phase 5 evidence
+
+For the precision gate, a `HUMAN_REVIEW` candidate is correct only when it is a ground-truth link;
+precision is correct review candidates divided by all candidates classified `HUMAN_REVIEW`.
 
 ## Phase 6 — Evaluation harness
 
@@ -578,6 +662,10 @@ automation, exposure, latency, token, and estimated-cost metrics are available.
 - [x] markdown report generated
 - [x] baseline vs system comparison available
 
+The completed Phase 6 fixture harness is infrastructure only. The new deterministic+graph versus
+TensorMux ranking comparison remains a Phase 5 acceptance dependency, and all Phase 6 tests must
+remain green after the Phase 5.8 relocation.
+
 ## Phase 7 — Runtime application agents + tools
 
 ### 7.1 Runtime agent contracts — Agent H
@@ -588,9 +676,10 @@ automation, exposure, latency, token, and estimated-cost metrics are available.
 - ExtractionAgent
 - SummaryAgent
 - ReviewExplanationAgent
+- CandidateRankingAgent
 
-**Status: Implemented and tested locally.** Bounded request/result contracts are available for all
-four agent kinds; controller routing is not yet integrated.
+**Status: IN_PROGRESS.** Bounded request/result contracts are available for the original four agent
+kinds; the candidate-ranking contract and controller routing are not yet integrated.
 
 ### 7.2 Tool layer — Agent H
 
@@ -663,6 +752,7 @@ timeouts, bounded transient retries, token telemetry, and cost estimation are su
 - investigation
 - summary
 - review explanation
+- candidate ranking
 
 **Every prompt must state:**
 
@@ -671,8 +761,8 @@ timeouts, bounded transient retries, token telemetry, and cost estimation are su
 - return structured output
 - confidence + unresolved questions.
 
-**Status: Implemented and tested.** Separate evidence-only packages exist for extraction,
-investigation, summary, and review explanation.
+**Status: IN_PROGRESS.** Separate evidence-only packages exist for extraction, investigation,
+summary, and review explanation; candidate ranking remains to be added.
 
 ### Phase 8 exit gate
 
@@ -680,6 +770,7 @@ investigation, summary, and review explanation.
 - [x] structured output validated
 - [ ] investigation limited to unresolved cases
 - [x] token count logged
+- [ ] complete candidate groups rank through the versioned TensorMux decision manifest
 
 ## Phase 9 — Policy, approval, accounting execution
 
@@ -965,7 +1056,7 @@ Use ReconRiver failure-recovery scenarios. [^sources]
 - ingest time
 - matching time
 - graph time
-- ML time
+- TensorMux ranking time
 - LLM time
 - total time
 
@@ -1023,7 +1114,7 @@ deterministic match
  ↓
 graph match
  ↓
-ML rank
+TensorMux candidate rank
  ↓
 exception
  ↓
@@ -1124,7 +1215,7 @@ Frontend shows real-time/persisted states.
        │          │           │
        └──────┬───┴──────┬────┘
               ▼          ▼
-             ML       Evaluation
+      TensorMux rank   Evaluation
               │          │
               └────┬─────┘
                    ▼
@@ -1159,6 +1250,17 @@ AO workers should be assigned leaf features with clear acceptance tests, not vag
 - this file updated
 
 ## Historical execution log
+
+### Phase 5 TensorMux supersession decision — 2026-09-06
+
+- **Owner:** Agents F, H, I, J, G
+- **Branch/PR:** `ao/finance_reconciliation_agent-4/root`; design review in progress
+- **Status:** [~] IN_PROGRESS
+- **Files:** `agents.md`, `plan.md`
+- **Tests:** Documentation consistency and diff checks only; runtime migration tests are specified but not implemented
+- **Benchmark result:** None yet; the authoritative unpublished TensorMux sealed-set gate is defined above
+- **Known limitations:** Historical local-model code and API wiring remain reachable until the mandatory first migration PR lands
+- **Next dependency:** Remove the local runtime/import graph, then implement and evaluate the versioned TensorMux ranking manifest
 
 ### Historical entry: Phase 1
 
@@ -1339,7 +1441,7 @@ AO workers should be assigned leaf features with clear acceptance tests, not vag
 
 - [ ] deterministic
 - [ ] graph/path
-- [ ] ML
+- [ ] TensorMux candidate ranking
 - [ ] hard negatives
 
 ### Agent
